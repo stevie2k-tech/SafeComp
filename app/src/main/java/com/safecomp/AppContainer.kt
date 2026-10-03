@@ -2,6 +2,7 @@ package com.safecomp
 
 import android.content.Context
 import android.os.SystemClock
+import com.safecomp.crypto.KeyManager
 import com.safecomp.data.AppPreferences
 import com.safecomp.data.GeofenceConfigRepository
 import com.safecomp.data.SafeCompDatabase
@@ -10,9 +11,11 @@ import com.safecomp.location.GeofenceManager
 import com.safecomp.location.LocationChecker
 import com.safecomp.security.SecurityStateRepository
 import com.safecomp.ui.permissions.PermissionChecker
+import com.safecomp.vault.VaultRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * Holds the app's long-lived objects and wires them together.
@@ -47,4 +50,17 @@ class AppContainer(context: Context) {
         clock = clock,
         scope = appScope,
     )
+
+    private val keyManager = KeyManager(appContext)
+    val vaultRepository = VaultRepository(
+        context = appContext,
+        dao = database.vaultFileDao(),
+        keyManager = keyManager,
+        securityState = securityState,
+        scope = appScope,
+    )
+
+    init {
+        appScope.launch { vaultRepository.cleanUpOrphans() }
+    }
 }

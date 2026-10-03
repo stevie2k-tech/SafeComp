@@ -11,6 +11,8 @@ room = "2.8.5"
 work = "2.12.0"
 playServicesLocation = "21.4.0"
 coroutines = "1.11.0"
+tink = "1.23.0"
+media3 = "1.11.1"
 junit = "4.13.2"
 
 [libraries]
@@ -34,6 +36,9 @@ play-services-location = { group = "com.google.android.gms", name = "play-servic
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "coroutines" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
+tink-android = { group = "com.google.crypto.tink", name = "tink-android", version.ref = "tink" }
+androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
+androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]

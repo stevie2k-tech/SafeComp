@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Business
+import androidx.compose.material.icons.outlined.FolderZip
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LockOpen
@@ -47,6 +48,7 @@ import com.safecomp.security.SecuritySnapshot
 import com.safecomp.security.SecurityState
 import com.safecomp.security.StateReason
 import com.safecomp.ui.components.SecureDialog
+import com.safecomp.ui.components.description
 import com.safecomp.ui.permissions.PermissionStatus
 import com.safecomp.ui.theme.InsideGreen
 import com.safecomp.ui.theme.OutsideRed
@@ -60,6 +62,7 @@ fun HomeScreen(
     viewModel: HomeViewModel,
     onReviewPermissions: () -> Unit,
     onEditOffice: () -> Unit,
+    onOpenVault: () -> Unit,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showSecurityInfo by rememberSaveable { mutableStateOf(false) }
@@ -87,6 +90,10 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             StateCard(state.snapshot, state.nowMillis, state.config)
+            Button(onClick = onOpenVault, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Outlined.FolderZip, contentDescription = null)
+                Text("  Open vault")
+            }
             PermissionBanners(state.permissions, onReviewPermissions)
             OfficeCard(state.config, state.registration, onEditOffice, viewModel::recheckNow)
         }
@@ -146,19 +153,6 @@ private fun StateCard(snapshot: SecuritySnapshot, now: Long, config: GeofenceCon
             }
         }
     }
-}
-
-private fun StateReason.description(): String = when (this) {
-    StateReason.CHECKING -> "Checking your location…"
-    StateReason.NOT_CONFIGURED -> "No office location is set yet. Set it up below."
-    StateReason.INSIDE_CONFIRMED -> "You're in the office."
-    StateReason.CONFIRMING_INSIDE -> "You seem to be in the office. Confirming before unlocking…"
-    StateReason.OUTSIDE_FIX, StateReason.OUTSIDE_GEOFENCE -> "You're outside the office area."
-    StateReason.PERMISSION_MISSING -> "Location permission is off, so SafeComp can't confirm where you are."
-    StateReason.LOCATION_OFF -> "Location services are off, so SafeComp can't confirm where you are."
-    StateReason.MOCK_LOCATION -> "A fake (mock) location was detected. SafeComp doesn't trust it."
-    StateReason.POOR_ACCURACY -> "The location signal is too weak to be sure where you are."
-    StateReason.NO_FIX -> "No location fix is available right now."
 }
 
 @Composable

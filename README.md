@@ -28,7 +28,7 @@ is rejected.
 
 - [x] Phase 1: project setup, permission onboarding, screen-capture protection (`FLAG_SECURE`)
 - [x] Phase 2: geofence setup and the INSIDE / OUTSIDE / UNKNOWN state
-- [ ] Phase 3: encrypted vault
+- [x] Phase 3: encrypted vault
 - [ ] Phase 4: boundary behaviour (grace period, auto-close, notifications)
 - [ ] Phase 5: local event log
 - [ ] Phase 6: demo mode (debug builds only)
