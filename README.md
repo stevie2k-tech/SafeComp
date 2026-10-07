@@ -31,4 +31,4 @@ is rejected.
 - [x] Phase 3: encrypted vault
 - [x] Phase 4: boundary behaviour (grace period, auto-close, notifications)
 - [x] Phase 5: local event log
-- [ ] Phase 6: demo mode (debug builds only)
+- [x] Phase 6: demo mode (debug builds only)

@@ -105,7 +105,7 @@ class EventLogViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     private fun EventLogEntry.toRow(names: Map<String, String>, unlocked: Boolean): LogRow {
-        val why = reason?.description().orEmpty()
+        val why = (if (simulated) "[Demo] " else "") + reason?.description().orEmpty()
         return when (type) {
             EventType.STATE_CHANGE -> LogRow(
                 id = id,

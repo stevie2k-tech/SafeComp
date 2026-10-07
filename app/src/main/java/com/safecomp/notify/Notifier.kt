@@ -28,14 +28,14 @@ class Notifier(private val context: Context) {
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
-    fun vaultLocked(detail: String) = post(
-        title = "Vault locked",
+    fun vaultLocked(detail: String, demo: Boolean) = post(
+        title = "Vault locked" + if (demo) " (demo)" else "",
         text = detail,
         icon = R.drawable.ic_stat_vault_locked,
     )
 
-    fun vaultUnlocked() = post(
-        title = "Vault unlocked",
+    fun vaultUnlocked(demo: Boolean) = post(
+        title = "Vault unlocked" + if (demo) " (demo)" else "",
         text = "You're in the office. Company files can be opened.",
         icon = R.drawable.ic_stat_vault_unlocked,
     )

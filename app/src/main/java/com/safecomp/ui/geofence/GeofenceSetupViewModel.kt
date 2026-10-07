@@ -82,7 +82,8 @@ class GeofenceSetupViewModel(private val container: AppContainer) : ViewModel() 
                 message = when {
                     location == null -> "Couldn't get a location fix. Move near a window and try again."
                     // A faked office location would let anyone unlock anywhere. Rejected.
-                    location.isMockCompat() -> "A mock (fake) location was detected and was not accepted."
+                    location.isMockCompat() && !container.demoMode.settings.value.allowMockLocations ->
+                        "A mock (fake) location was detected and was not accepted."
                     else -> {
                         _uiState.update {
                             it.copy(latitude = location.latitude.format(), longitude = location.longitude.format())

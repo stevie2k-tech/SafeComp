@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.Flow
  */
 class EventLogRepository(
     private val dao: EventLogDao,
+    private val isDemoActive: () -> Boolean = { false },
     private val wallClock: () -> Long = System::currentTimeMillis,
 ) : SecurityStateListener {
 
@@ -26,7 +27,7 @@ class EventLogRepository(
     }
 
     private suspend fun record(entry: EventLogEntry) {
-        dao.insert(entry)
+        dao.insert(entry.copy(simulated = isDemoActive()))
         dao.deleteOlderThan(EventLogPolicy.retentionCutoff(wallClock()))
         dao.trimTo(EventLogEntry.MAX_ENTRIES)
     }

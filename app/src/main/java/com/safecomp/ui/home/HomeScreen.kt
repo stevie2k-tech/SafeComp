@@ -65,6 +65,7 @@ fun HomeScreen(
     onEditOffice: () -> Unit,
     onOpenVault: () -> Unit,
     onOpenLog: () -> Unit,
+    demoPanel: @Composable () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showSecurityInfo by rememberSaveable { mutableStateOf(false) }
@@ -101,6 +102,7 @@ fun HomeScreen(
             }
             PermissionBanners(state.permissions, onReviewPermissions)
             OfficeCard(state.config, state.registration, onEditOffice, viewModel::recheckNow)
+            demoPanel()
         }
     }
 

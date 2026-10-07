@@ -1,5 +1,6 @@
 package com.safecomp.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -31,6 +32,8 @@ data class EventLogEntry(
     val fileId: String? = null,
     /** FILE_OPEN only: whether decryption was allowed. */
     val allowed: Boolean? = null,
+    /** Recorded while debug demo mode was on, so demo events are never mistaken for real ones. */
+    @ColumnInfo(defaultValue = "0") val simulated: Boolean = false,
 ) {
     companion object {
         const val RETENTION_DAYS = 14

@@ -1,6 +1,13 @@
 package com.safecomp.ui.navigation
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -50,77 +57,88 @@ fun SafeCompNavHost(container: AppContainer) {
         }
     }
 
-    NavHost(navController = navController, startDestination = start) {
-        composable(Routes.ONBOARDING) {
-            val vm: PermissionsViewModel = viewModel(
-                factory = viewModelFactory {
-                    initializer { PermissionsViewModel(container.permissionChecker, container.preferences) }
-                },
-            )
-            OnboardingScreen(
-                viewModel = vm,
-                onFinished = {
-                    navController.navigate(Routes.HOME) {
-                        popUpTo(Routes.ONBOARDING) { inclusive = true }
-                        launchSingleTop = true
-                    }
-                },
-            )
+    Box(Modifier.fillMaxSize()) {
+        NavHost(navController = navController, startDestination = start) {
+            composable(Routes.ONBOARDING) {
+                val vm: PermissionsViewModel = viewModel(
+                    factory = viewModelFactory {
+                        initializer { PermissionsViewModel(container.permissionChecker, container.preferences) }
+                    },
+                )
+                OnboardingScreen(
+                    viewModel = vm,
+                    onFinished = {
+                        navController.navigate(Routes.HOME) {
+                            popUpTo(Routes.ONBOARDING) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
+                )
+            }
+            composable(Routes.HOME) {
+                val vm: HomeViewModel = viewModel(
+                    factory = viewModelFactory { initializer { HomeViewModel(container) } },
+                )
+                HomeScreen(
+                    viewModel = vm,
+                    onReviewPermissions = {
+                        navController.navigate(Routes.ONBOARDING) { launchSingleTop = true }
+                    },
+                    onEditOffice = { navController.navigate(Routes.GEOFENCE) { launchSingleTop = true } },
+                    onOpenVault = { navController.navigate(Routes.VAULT) { launchSingleTop = true } },
+                    onOpenLog = { navController.navigate(Routes.LOG) { launchSingleTop = true } },
+                    demoPanel = { container.demoMode.ControlPanel(Modifier) },
+                )
+            }
+            composable(Routes.LOG) {
+                val vm: EventLogViewModel = viewModel(
+                    factory = viewModelFactory { initializer { EventLogViewModel(container) } },
+                )
+                EventLogScreen(viewModel = vm, onBack = { navController.popBackStack() })
+            }
+            composable(Routes.VAULT) {
+                val vm: VaultViewModel = viewModel(
+                    factory = viewModelFactory { initializer { VaultViewModel(container) } },
+                )
+                VaultScreen(
+                    viewModel = vm,
+                    graceSecondsLeft = container.vaultSession.graceSecondsLeft,
+                    onBack = { navController.popBackStack() },
+                    onOpenFile = { id -> navController.navigate(Routes.viewer(id)) { launchSingleTop = true } },
+                )
+            }
+            composable(
+                route = Routes.VIEWER,
+                arguments = listOf(navArgument("fileId") { type = NavType.StringType }),
+            ) { entry ->
+                val fileId = entry.arguments?.getString("fileId").orEmpty()
+                val vm: ViewerViewModel = viewModel(
+                    factory = viewModelFactory {
+                        initializer {
+                            ViewerViewModel(this[APPLICATION_KEY]!!, container, fileId)
+                        }
+                    },
+                )
+                ViewerScreen(
+                    viewModel = vm,
+                    graceSecondsLeft = container.vaultSession.graceSecondsLeft,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(Routes.GEOFENCE) {
+                val vm: GeofenceSetupViewModel = viewModel(
+                    factory = viewModelFactory { initializer { GeofenceSetupViewModel(container) } },
+                )
+                GeofenceSetupScreen(viewModel = vm, onDone = { navController.popBackStack() })
+            }
         }
-        composable(Routes.HOME) {
-            val vm: HomeViewModel = viewModel(
-                factory = viewModelFactory { initializer { HomeViewModel(container) } },
-            )
-            HomeScreen(
-                viewModel = vm,
-                onReviewPermissions = {
-                    navController.navigate(Routes.ONBOARDING) { launchSingleTop = true }
-                },
-                onEditOffice = { navController.navigate(Routes.GEOFENCE) { launchSingleTop = true } },
-                onOpenVault = { navController.navigate(Routes.VAULT) { launchSingleTop = true } },
-                onOpenLog = { navController.navigate(Routes.LOG) { launchSingleTop = true } },
-            )
-        }
-        composable(Routes.LOG) {
-            val vm: EventLogViewModel = viewModel(
-                factory = viewModelFactory { initializer { EventLogViewModel(container) } },
-            )
-            EventLogScreen(viewModel = vm, onBack = { navController.popBackStack() })
-        }
-        composable(Routes.VAULT) {
-            val vm: VaultViewModel = viewModel(
-                factory = viewModelFactory { initializer { VaultViewModel(container) } },
-            )
-            VaultScreen(
-                viewModel = vm,
-                graceSecondsLeft = container.vaultSession.graceSecondsLeft,
-                onBack = { navController.popBackStack() },
-                onOpenFile = { id -> navController.navigate(Routes.viewer(id)) { launchSingleTop = true } },
-            )
-        }
-        composable(
-            route = Routes.VIEWER,
-            arguments = listOf(navArgument("fileId") { type = NavType.StringType }),
-        ) { entry ->
-            val fileId = entry.arguments?.getString("fileId").orEmpty()
-            val vm: ViewerViewModel = viewModel(
-                factory = viewModelFactory {
-                    initializer {
-                        ViewerViewModel(this[APPLICATION_KEY]!!, container, fileId)
-                    }
-                },
-            )
-            ViewerScreen(
-                viewModel = vm,
-                graceSecondsLeft = container.vaultSession.graceSecondsLeft,
-                onBack = { navController.popBackStack() },
-            )
-        }
-        composable(Routes.GEOFENCE) {
-            val vm: GeofenceSetupViewModel = viewModel(
-                factory = viewModelFactory { initializer { GeofenceSetupViewModel(container) } },
-            )
-            GeofenceSetupScreen(viewModel = vm, onDone = { navController.popBackStack() })
-        }
+        // Always visible while demo mode is on, so a demo is never mistaken for the real thing.
+        // (Debug builds only: in release this draws nothing.)
+        container.demoMode.Badge(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 12.dp),
+        )
     }
 }

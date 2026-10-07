@@ -1,6 +1,8 @@
 package com.safecomp.security
 
+import com.safecomp.BuildConfig
 import com.safecomp.data.GeofenceConfig
+import com.safecomp.demo.DemoSettings
 import com.safecomp.data.GeofenceConfigRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -60,7 +62,20 @@ class SecurityStateRepository(
         }
     }
 
-    suspend fun dispatch(event: SecurityEvent) {
+    /** Set by the container. Always "off" in release builds (see DemoModeController). */
+    var demoSettings: StateFlow<DemoSettings> = MutableStateFlow(DemoSettings())
+
+    /**
+     * @param simulated true only for input from debug demo mode. Release builds refuse it,
+     *   as a second barrier behind the fact that release builds contain no code that sends it.
+     */
+    suspend fun dispatch(event: SecurityEvent, simulated: Boolean = false) {
+        if (simulated && !BuildConfig.DEBUG) return
+        val demo = if (BuildConfig.DEBUG) demoSettings.value else DemoSettings()
+        // While a position is simulated, real location input is ignored, so bad GPS on
+        // presentation day can't fight the demo.
+        if (demo.simulation != null && !simulated && event.isRealLocationInput()) return
+
         val params = configRepository.current()?.toParams()
         val (old, new) = mutex.withLock {
             val old = _snapshot.value
@@ -69,6 +84,7 @@ class SecurityStateRepository(
                 event = event,
                 nowMillis = clock(),
                 params = params,
+                allowMockLocations = demo.allowMockLocations,
             )
             _snapshot.value = new
             if (new != old) store.save(new)
@@ -88,6 +104,19 @@ class SecurityStateRepository(
         dispatch(SecurityEvent.Tick)
         return _snapshot.value.isUnlocked
     }
+}
+
+private fun SecurityEvent.isRealLocationInput(): Boolean = when (this) {
+    is SecurityEvent.LocationFix,
+    SecurityEvent.GeofenceEntered,
+    SecurityEvent.GeofenceDwelled,
+    SecurityEvent.GeofenceExited,
+    SecurityEvent.MockLocationDetected,
+    SecurityEvent.PermissionMissing,
+    SecurityEvent.LocationServicesOff,
+    SecurityEvent.FixUnavailable,
+    -> true
+    SecurityEvent.ConfigChanged, SecurityEvent.AppForegrounded, SecurityEvent.Tick -> false
 }
 
 fun GeofenceConfig.toParams() = GeofenceParams(

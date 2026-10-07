@@ -6,6 +6,8 @@ import com.safecomp.crypto.KeyManager
 import com.safecomp.data.AppPreferences
 import com.safecomp.data.GeofenceConfigRepository
 import com.safecomp.data.SafeCompDatabase
+import com.safecomp.demo.DemoModeController
+import com.safecomp.demo.DemoModes
 import com.safecomp.location.ForegroundLocationMonitor
 import com.safecomp.log.EventLogRepository
 import com.safecomp.location.GraceExpiryScheduler
@@ -58,7 +60,16 @@ class AppContainer(context: Context) {
         scope = appScope,
     )
 
-    val eventLog = EventLogRepository(database.eventLogDao())
+    /** Demo mode: a working implementation in debug builds, an inert stub in release builds. */
+    val demoMode: DemoModeController = DemoModes.create(
+        context = appContext,
+        securityState = securityState,
+        scope = appScope,
+        onSimulationEnded = { foregroundMonitor.recheckNow() },
+    )
+    private val isDemoActive: () -> Boolean = { demoMode.settings.value.active }
+
+    val eventLog = EventLogRepository(database.eventLogDao(), isDemoActive)
 
     private val keyManager = KeyManager(appContext)
     val vaultRepository = VaultRepository(
@@ -76,7 +87,8 @@ class AppContainer(context: Context) {
     init {
         securityState.addListener(eventLog)
         securityState.addListener(vaultSession)
-        securityState.addListener(VaultStatusAnnouncer(notifier, snapshotStore))
+        securityState.demoSettings = demoMode.settings
+        securityState.addListener(VaultStatusAnnouncer(notifier, snapshotStore, isDemoActive))
         securityState.addListener(GraceExpiryScheduler(appContext, geofenceConfigRepository, clock))
         appScope.launch {
             vaultRepository.cleanUpOrphans()

@@ -12,16 +12,17 @@ import com.safecomp.ui.components.description
 class VaultStatusAnnouncer(
     private val notifier: Notifier,
     private val store: SecuritySnapshotStore,
+    private val isDemoActive: () -> Boolean,
 ) : SecurityStateListener {
 
     override suspend fun onStateChanged(old: SecuritySnapshot, new: SecuritySnapshot) {
         when (Announcements.decide(store.lastAnnouncedUnlocked, new)) {
             Announcement.UNLOCKED -> {
-                notifier.vaultUnlocked()
+                notifier.vaultUnlocked(demo = isDemoActive())
                 store.lastAnnouncedUnlocked = true
             }
             Announcement.LOCKED -> {
-                notifier.vaultLocked(lockedText(new.reason))
+                notifier.vaultLocked(lockedText(new.reason), demo = isDemoActive())
                 store.lastAnnouncedUnlocked = false
             }
             null -> if (new.reason == StateReason.NOT_CONFIGURED) store.lastAnnouncedUnlocked = null
