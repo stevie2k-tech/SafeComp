@@ -174,7 +174,11 @@ class ViewerViewModel(
         release(old)
     }
 
-    /** Best-effort wipe of decrypted data. Phase 4 adds a vault-wide wipe on top of this. */
+    /**
+     * Best-effort wipe of decrypted data. VaultSession then closes this screen and clears the
+     * cache. Strings (text files, names) can't be overwritten in the JVM; they're dropped and
+     * left to the garbage collector. That's a documented limitation.
+     */
     private fun release(content: ViewerContent) {
         when (content) {
             // eraseColor overwrites the pixels in place, which wipes them. Unlike recycle(),

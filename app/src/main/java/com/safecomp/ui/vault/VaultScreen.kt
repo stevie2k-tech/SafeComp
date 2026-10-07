@@ -56,10 +56,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.safecomp.data.FileKind
+import com.safecomp.ui.components.GraceBanner
 import com.safecomp.ui.components.SecureDialog
 import com.safecomp.ui.components.SecureDialogProperties
 import com.safecomp.ui.locked.LockedHedgehogScreen
 import com.safecomp.vault.ImportProgress
+import kotlinx.coroutines.flow.Flow
 
 /** Types the vault can preview. Other types aren't offered in the picker. */
 private val ImportMimeTypes = arrayOf(
@@ -68,7 +70,12 @@ private val ImportMimeTypes = arrayOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VaultScreen(viewModel: VaultViewModel, onBack: () -> Unit, onOpenFile: (String) -> Unit) {
+fun VaultScreen(
+    viewModel: VaultViewModel,
+    graceSecondsLeft: Flow<Long?>,
+    onBack: () -> Unit,
+    onOpenFile: (String) -> Unit,
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val pending by viewModel.pendingImport.collectAsStateWithLifecycle()
     val progress by viewModel.importProgress.collectAsStateWithLifecycle()
@@ -82,14 +89,17 @@ fun VaultScreen(viewModel: VaultViewModel, onBack: () -> Unit, onOpenFile: (Stri
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Vault") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
+            Column {
+                TopAppBar(
+                    title = { Text("Vault") },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                )
+                GraceBanner(graceSecondsLeft)
+            }
         },
         floatingActionButton = {
             if (state is VaultUiState.Unlocked) {

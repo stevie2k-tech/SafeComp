@@ -14,5 +14,7 @@ class SafeCompApp : Application() {
         container = AppContainer(this)
         // Check location whenever the app becomes visible, and stop when it's hidden.
         ProcessLifecycleOwner.get().lifecycle.addObserver(container.foregroundMonitor)
+        // Close open files when the app goes to the background.
+        ProcessLifecycleOwner.get().lifecycle.addObserver(container.vaultSession)
     }
 }

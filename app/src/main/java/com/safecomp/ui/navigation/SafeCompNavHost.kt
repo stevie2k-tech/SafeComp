@@ -1,6 +1,7 @@
 package com.safecomp.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -35,6 +36,16 @@ private object Routes {
 fun SafeCompNavHost(container: AppContainer) {
     val navController = rememberNavController()
     val start = if (container.preferences.onboardingCompleted) Routes.HOME else Routes.ONBOARDING
+
+    // Close any open file when the vault locks or the app goes to the background.
+    // The viewer has already wiped its content by then; this takes the user back to the list.
+    LaunchedEffect(navController) {
+        container.vaultSession.closeViewers.collect {
+            if (navController.currentDestination?.route == Routes.VIEWER) {
+                navController.popBackStack(Routes.VIEWER, inclusive = true)
+            }
+        }
+    }
 
     NavHost(navController = navController, startDestination = start) {
         composable(Routes.ONBOARDING) {
@@ -72,6 +83,7 @@ fun SafeCompNavHost(container: AppContainer) {
             )
             VaultScreen(
                 viewModel = vm,
+                graceSecondsLeft = container.vaultSession.graceSecondsLeft,
                 onBack = { navController.popBackStack() },
                 onOpenFile = { id -> navController.navigate(Routes.viewer(id)) { launchSingleTop = true } },
             )
@@ -88,7 +100,11 @@ fun SafeCompNavHost(container: AppContainer) {
                     }
                 },
             )
-            ViewerScreen(viewModel = vm, onBack = { navController.popBackStack() })
+            ViewerScreen(
+                viewModel = vm,
+                graceSecondsLeft = container.vaultSession.graceSecondsLeft,
+                onBack = { navController.popBackStack() },
+            )
         }
         composable(Routes.GEOFENCE) {
             val vm: GeofenceSetupViewModel = viewModel(

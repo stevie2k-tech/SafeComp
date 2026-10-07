@@ -68,6 +68,28 @@ object SecurityStateMachine {
         }
     }
 
+    /**
+     * Rebuilds the state saved before the process was killed. Applied ONCE, at load time, so a
+     * restored snapshot can never be more trusted than a live one:
+     *  - a different boot -> start from UNKNOWN (elapsedRealtime restarts at 0 on every boot)
+     *  - a stale INSIDE -> UNKNOWN until a fresh fix confirms it (same rule as AppForegrounded)
+     *  - an expired or impossible grace period -> its lock takes effect
+     *  - half-finished dwell evidence is dropped: dwell needs CONTINUOUS evidence
+     */
+    fun restore(saved: SecuritySnapshot, savedBoot: Int, currentBoot: Int, nowMillis: Long): SecuritySnapshot {
+        if (savedBoot != currentBoot || savedBoot < 0) return SecuritySnapshot()
+        val pending = saved.pendingExit
+        if (saved.state == SecurityState.INSIDE && pending != null && nowMillis < pending.sinceMillis) {
+            return locked(pending.target, pending.reason)
+        }
+        val revalidated = revalidateIfStale(saved, nowMillis)
+        return if (revalidated.state == SecurityState.INSIDE) {
+            revalidated
+        } else {
+            revalidated.copy(enterEvidenceSince = null, pendingExit = null)
+        }
+    }
+
     private fun locked(state: SecurityState, reason: StateReason) =
         SecuritySnapshot(state = state, reason = reason)
 

@@ -7,11 +7,16 @@ import com.safecomp.data.AppPreferences
 import com.safecomp.data.GeofenceConfigRepository
 import com.safecomp.data.SafeCompDatabase
 import com.safecomp.location.ForegroundLocationMonitor
+import com.safecomp.location.GraceExpiryScheduler
 import com.safecomp.location.GeofenceManager
 import com.safecomp.location.LocationChecker
+import com.safecomp.notify.Notifier
+import com.safecomp.notify.VaultStatusAnnouncer
+import com.safecomp.security.SecuritySnapshotStore
 import com.safecomp.security.SecurityStateRepository
 import com.safecomp.ui.permissions.PermissionChecker
 import com.safecomp.vault.VaultRepository
+import com.safecomp.vault.VaultSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -38,7 +43,8 @@ class AppContainer(context: Context) {
     private val database = SafeCompDatabase.build(appContext)
     val geofenceConfigRepository = GeofenceConfigRepository(database.geofenceConfigDao())
 
-    val securityState = SecurityStateRepository(geofenceConfigRepository, clock, appScope)
+    private val snapshotStore = SecuritySnapshotStore(appContext)
+    val securityState = SecurityStateRepository(geofenceConfigRepository, snapshotStore, clock, appScope)
     val locationChecker = LocationChecker(appContext, permissionChecker)
     val geofenceManager = GeofenceManager(appContext, permissionChecker)
     val foregroundMonitor = ForegroundLocationMonitor(
@@ -60,7 +66,16 @@ class AppContainer(context: Context) {
         scope = appScope,
     )
 
+    val vaultSession = VaultSession(appContext, securityState, geofenceConfigRepository, clock)
+    private val notifier = Notifier(appContext)
+
     init {
-        appScope.launch { vaultRepository.cleanUpOrphans() }
+        securityState.addListener(vaultSession)
+        securityState.addListener(VaultStatusAnnouncer(notifier, snapshotStore))
+        securityState.addListener(GraceExpiryScheduler(appContext, geofenceConfigRepository, clock))
+        appScope.launch {
+            vaultRepository.cleanUpOrphans()
+            vaultSession.clearCache()
+        }
     }
 }

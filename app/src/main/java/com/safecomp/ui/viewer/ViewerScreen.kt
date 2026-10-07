@@ -10,6 +10,7 @@ import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -53,24 +54,29 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import com.safecomp.ui.components.GraceBanner
 import com.safecomp.ui.locked.LockedHedgehogScreen
+import kotlinx.coroutines.flow.Flow
 
 @kotlin.OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ViewerScreen(viewModel: ViewerViewModel, onBack: () -> Unit) {
+fun ViewerScreen(viewModel: ViewerViewModel, graceSecondsLeft: Flow<Long?>, onBack: () -> Unit) {
     val name by viewModel.name.collectAsStateWithLifecycle()
     val content by viewModel.content.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(name ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
+            Column {
+                TopAppBar(
+                    title = { Text(name ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                )
+                GraceBanner(graceSecondsLeft)
+            }
         },
     ) { padding ->
         val modifier = Modifier
