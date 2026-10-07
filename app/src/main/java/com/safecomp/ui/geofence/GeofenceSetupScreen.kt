@@ -180,7 +180,7 @@ fun GeofenceSetupScreen(viewModel: GeofenceSetupViewModel, onDone: () -> Unit) {
                 HorizontalDivider()
                 Text(
                     "Office moved, or handing this phone back? Reset removes the office location, " +
-                        "every file in the vault, and the encryption keys.",
+                        "every file in the vault, the encryption keys and the event log.",
                     style = MaterialTheme.typography.bodySmall,
                 )
                 TextButton(
@@ -194,8 +194,8 @@ fun GeofenceSetupScreen(viewModel: GeofenceSetupViewModel, onDone: () -> Unit) {
     if (confirmReset) {
         SecureDialog(
             title = "Reset SafeComp?",
-            text = "This deletes the office location, every file in the vault, and the " +
-                "encryption keys. Nothing can be recovered afterwards.",
+            text = "This deletes the office location, every file in the vault, the encryption " +
+                "keys and the event log. Nothing can be recovered afterwards.",
             confirmLabel = "Reset",
             onConfirm = {
                 confirmReset = false

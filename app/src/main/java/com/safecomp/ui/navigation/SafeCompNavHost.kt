@@ -15,6 +15,8 @@ import com.safecomp.AppContainer
 import com.safecomp.ui.geofence.GeofenceSetupScreen
 import com.safecomp.ui.geofence.GeofenceSetupViewModel
 import com.safecomp.ui.home.HomeScreen
+import com.safecomp.ui.log.EventLogScreen
+import com.safecomp.ui.log.EventLogViewModel
 import com.safecomp.ui.home.HomeViewModel
 import com.safecomp.ui.permissions.OnboardingScreen
 import com.safecomp.ui.permissions.PermissionsViewModel
@@ -28,6 +30,7 @@ private object Routes {
     const val HOME = "home"
     const val GEOFENCE = "geofence"
     const val VAULT = "vault"
+    const val LOG = "log"
     const val VIEWER = "viewer/{fileId}"
     fun viewer(fileId: String) = "viewer/$fileId"
 }
@@ -75,7 +78,14 @@ fun SafeCompNavHost(container: AppContainer) {
                 },
                 onEditOffice = { navController.navigate(Routes.GEOFENCE) { launchSingleTop = true } },
                 onOpenVault = { navController.navigate(Routes.VAULT) { launchSingleTop = true } },
+                onOpenLog = { navController.navigate(Routes.LOG) { launchSingleTop = true } },
             )
+        }
+        composable(Routes.LOG) {
+            val vm: EventLogViewModel = viewModel(
+                factory = viewModelFactory { initializer { EventLogViewModel(container) } },
+            )
+            EventLogScreen(viewModel = vm, onBack = { navController.popBackStack() })
         }
         composable(Routes.VAULT) {
             val vm: VaultViewModel = viewModel(

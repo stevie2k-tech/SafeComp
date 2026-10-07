@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Business
 import androidx.compose.material.icons.outlined.FolderZip
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LockOpen
@@ -63,6 +64,7 @@ fun HomeScreen(
     onReviewPermissions: () -> Unit,
     onEditOffice: () -> Unit,
     onOpenVault: () -> Unit,
+    onOpenLog: () -> Unit,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showSecurityInfo by rememberSaveable { mutableStateOf(false) }
@@ -74,6 +76,9 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("SafeComp") },
                 actions = {
+                    IconButton(onClick = onOpenLog) {
+                        Icon(Icons.Outlined.History, contentDescription = "Event log")
+                    }
                     IconButton(onClick = { showSecurityInfo = true }) {
                         Icon(Icons.Outlined.Info, contentDescription = "How this screen is protected")
                     }

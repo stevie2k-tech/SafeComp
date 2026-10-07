@@ -76,8 +76,9 @@ class ViewerViewModel(
             return
         }
         try {
-            _name.value = repository.decryptNames(listOf(file))[file.id]
-            setContent(
+            // Content first: opening goes through the logged gate, so a denied attempt is
+            // recorded before anything else (including the file name) is decrypted.
+            val content =
                 when (file.kind) {
                     FileKind.IMAGE -> loadImage(file)
                     FileKind.TEXT -> loadText(file)
@@ -89,8 +90,14 @@ class ViewerViewModel(
                     FileKind.OTHER -> ViewerContent.Message(
                         "SafeComp can't preview this type of file. It stays encrypted in the vault.",
                     )
-                },
-            )
+                }
+            try {
+                _name.value = repository.decryptNames(listOf(file))[file.id]
+            } catch (e: Exception) {
+                release(content) // Locked in between: don't leave the content loaded.
+                throw e
+            }
+            setContent(content)
         } catch (e: VaultLockedException) {
             lock(container.securityState.snapshot.value.reason)
         } catch (e: FileTooLargeException) {

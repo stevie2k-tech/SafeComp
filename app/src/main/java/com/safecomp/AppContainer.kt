@@ -7,6 +7,7 @@ import com.safecomp.data.AppPreferences
 import com.safecomp.data.GeofenceConfigRepository
 import com.safecomp.data.SafeCompDatabase
 import com.safecomp.location.ForegroundLocationMonitor
+import com.safecomp.log.EventLogRepository
 import com.safecomp.location.GraceExpiryScheduler
 import com.safecomp.location.GeofenceManager
 import com.safecomp.location.LocationChecker
@@ -57,12 +58,15 @@ class AppContainer(context: Context) {
         scope = appScope,
     )
 
+    val eventLog = EventLogRepository(database.eventLogDao())
+
     private val keyManager = KeyManager(appContext)
     val vaultRepository = VaultRepository(
         context = appContext,
         dao = database.vaultFileDao(),
         keyManager = keyManager,
         securityState = securityState,
+        eventLog = eventLog,
         scope = appScope,
     )
 
@@ -70,6 +74,7 @@ class AppContainer(context: Context) {
     private val notifier = Notifier(appContext)
 
     init {
+        securityState.addListener(eventLog)
         securityState.addListener(vaultSession)
         securityState.addListener(VaultStatusAnnouncer(notifier, snapshotStore))
         securityState.addListener(GraceExpiryScheduler(appContext, geofenceConfigRepository, clock))

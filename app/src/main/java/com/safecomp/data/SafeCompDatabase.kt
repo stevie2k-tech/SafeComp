@@ -7,14 +7,15 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [GeofenceConfig::class, VaultFile::class],
-    version = 2,
+    entities = [GeofenceConfig::class, VaultFile::class, EventLogEntry::class],
+    version = 3,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2)],
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
 )
 abstract class SafeCompDatabase : RoomDatabase() {
     abstract fun geofenceConfigDao(): GeofenceConfigDao
     abstract fun vaultFileDao(): VaultFileDao
+    abstract fun eventLogDao(): EventLogDao
 
     companion object {
         fun build(context: Context): SafeCompDatabase =

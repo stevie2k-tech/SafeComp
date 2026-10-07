@@ -13,6 +13,7 @@ import com.safecomp.crypto.FileCipher
 import com.safecomp.crypto.KeyManager
 import com.safecomp.data.VaultFile
 import com.safecomp.data.VaultFileDao
+import com.safecomp.log.EventLogRepository
 import com.safecomp.security.SecurityStateRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -68,6 +69,7 @@ class VaultRepository(
     private val dao: VaultFileDao,
     private val keyManager: KeyManager,
     private val securityState: SecurityStateRepository,
+    private val eventLog: EventLogRepository,
     private val scope: CoroutineScope,
 ) {
     private val resolver: ContentResolver = context.contentResolver
@@ -85,6 +87,13 @@ class VaultRepository(
 
     private suspend fun requireUnlocked() {
         if (!securityState.isUnlockedNow()) throw VaultLockedException()
+    }
+
+    /** Same check as [requireUnlocked], plus an event-log entry, allowed or denied. */
+    private suspend fun requireUnlockedToOpen(file: VaultFile) {
+        val allowed = securityState.isUnlockedNow()
+        eventLog.fileOpenAttempt(file.id, securityState.snapshot.value, allowed)
+        if (!allowed) throw VaultLockedException()
     }
 
     // --- Import -------------------------------------------------------------------------
@@ -184,7 +193,7 @@ class VaultRepository(
 
     /** Decrypts a small file into memory. The caller must zero the array when done. */
     suspend fun readBytes(file: VaultFile, maxBytes: Long): ByteArray {
-        requireUnlocked()
+        requireUnlockedToOpen(file)
         return withContext(Dispatchers.IO) {
             cipherFile(file).inputStream().use { input ->
                 keyManager.fileCipher().decryptToBytes(
@@ -199,7 +208,7 @@ class VaultRepository(
 
     /** A PDF decrypted into anonymous memory (memfd), never onto disk. Android 11+. */
     suspend fun openPdf(file: VaultFile): ParcelFileDescriptor {
-        requireUnlocked()
+        requireUnlockedToOpen(file)
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) throw UnsupportedOperationException()
         return withContext(Dispatchers.IO) {
             cipherFile(file).inputStream().use { input ->
@@ -212,7 +221,7 @@ class VaultRepository(
 
     /** Factory for a player data source that decrypts on the fly (video/audio). */
     suspend fun mediaDataSourceFactory(file: VaultFile): DecryptingDataSource.Factory {
-        requireUnlocked()
+        requireUnlockedToOpen(file)
         val cipher = withContext(Dispatchers.IO) { keyManager.fileCipher() }
         return DecryptingDataSource.Factory(
             openChannel = { cipher.seekableDecryptingChannel(cipherFile(file), FileCipher.fileAssociatedData(file.id)) },

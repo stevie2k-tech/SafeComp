@@ -30,5 +30,5 @@ is rejected.
 - [x] Phase 2: geofence setup and the INSIDE / OUTSIDE / UNKNOWN state
 - [x] Phase 3: encrypted vault
 - [x] Phase 4: boundary behaviour (grace period, auto-close, notifications)
-- [ ] Phase 5: local event log
+- [x] Phase 5: local event log
 - [ ] Phase 6: demo mode (debug builds only)
