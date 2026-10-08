@@ -27,7 +27,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -60,37 +60,36 @@ fun StatusRing(
     val tint by animateColorAsState(color, tween(700), label = "ringColor")
     val animatedProgress by animateFloatAsState(progress.coerceIn(0f, 1f), tween(900), label = "ringProgress")
     val infinite = rememberInfiniteTransition(label = "ring")
-    val breathe by infinite.animateFloat(
+    // Kept as State and read only inside graphicsLayer {}: each animation frame then only
+    // updates a layer property (alpha / rotation), with no recomposition and no redraw.
+    val breathe = infinite.animateFloat(
         initialValue = 0.55f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(2400), RepeatMode.Reverse),
         label = "breathe",
     )
-    val spin by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(1400, easing = LinearEasing)),
-        label = "spin",
-    )
 
     Box(modifier.size(280.dp), contentAlignment = Alignment.Center) {
+        // Layer 1: glow, drawn once; breathing = layer alpha.
+        Canvas(Modifier.fillMaxSize().graphicsLayer { alpha = breathe.value }) {
+            val r = size.minDimension / 2f * 0.74f
+            drawCircle(
+                brush = Brush.radialGradient(
+                    listOf(tint.copy(alpha = 0.32f), tint.copy(alpha = 0.06f), Color.Transparent),
+                    center = center,
+                    radius = r * 1.55f,
+                ),
+                radius = r * 1.55f,
+                center = center,
+            )
+        }
+
+        // Layer 2: dial, track, progress and inner disc. Redrawn only when progress/colour change.
         Canvas(Modifier.fillMaxSize()) {
             val c = center
             val r = size.minDimension / 2f * 0.74f
             val stroke = 9.dp.toPx()
 
-            // Glow.
-            drawCircle(
-                brush = Brush.radialGradient(
-                    listOf(tint.copy(alpha = 0.32f * breathe), tint.copy(alpha = 0.06f * breathe), Color.Transparent),
-                    center = c,
-                    radius = r * 1.55f,
-                ),
-                radius = r * 1.55f,
-                center = c,
-            )
-
-            // Dial ticks. In FILLING / DRAINING, ticks up to the progress light up.
             val ticks = 72
             val lit = when (mode) {
                 RingMode.FILLING, RingMode.DRAINING -> (animatedProgress * ticks).toInt()
@@ -111,11 +110,8 @@ fun StatusRing(
                 )
             }
 
-            // Track.
             drawCircle(Sc.Hairline, radius = r, center = c, style = Stroke(stroke))
 
-            val arcTopLeft = Offset(c.x - r, c.y - r)
-            val arcSize = Size(r * 2, r * 2)
             when (mode) {
                 RingMode.STEADY -> drawCircle(
                     brush = Brush.sweepGradient(listOf(tint.copy(alpha = 0.55f), tint, tint.copy(alpha = 0.55f)), c),
@@ -123,29 +119,18 @@ fun StatusRing(
                     center = c,
                     style = Stroke(stroke),
                 )
-                RingMode.CHECKING -> rotate(spin, c) {
-                    drawArc(
-                        brush = Brush.sweepGradient(listOf(Color.Transparent, tint), c),
-                        startAngle = 0f,
-                        sweepAngle = 110f,
-                        useCenter = false,
-                        topLeft = arcTopLeft,
-                        size = arcSize,
-                        style = Stroke(stroke, cap = StrokeCap.Round),
-                    )
-                }
                 RingMode.FILLING, RingMode.DRAINING -> drawArc(
                     color = tint,
                     startAngle = -90f,
                     sweepAngle = 360f * animatedProgress,
                     useCenter = false,
-                    topLeft = arcTopLeft,
-                    size = arcSize,
+                    topLeft = Offset(c.x - r, c.y - r),
+                    size = Size(r * 2, r * 2),
                     style = Stroke(stroke, cap = StrokeCap.Round),
                 )
+                RingMode.CHECKING -> Unit // drawn by the spinner layer
             }
 
-            // Inner disc with a faint top highlight.
             val inner = r - stroke * 1.4f
             drawCircle(Sc.Surface, radius = inner, center = c)
             drawCircle(
@@ -158,6 +143,30 @@ fun StatusRing(
                 center = c,
             )
         }
+
+        // Layer 3: spinner, only while checking; spinning = layer rotation.
+        if (mode == RingMode.CHECKING) {
+            val spin = infinite.animateFloat(
+                initialValue = 0f,
+                targetValue = 360f,
+                animationSpec = infiniteRepeatable(tween(1400, easing = LinearEasing)),
+                label = "spin",
+            )
+            Canvas(Modifier.fillMaxSize().graphicsLayer { rotationZ = spin.value }) {
+                val c = center
+                val r = size.minDimension / 2f * 0.74f
+                drawArc(
+                    brush = Brush.sweepGradient(listOf(Color.Transparent, tint), c),
+                    startAngle = 0f,
+                    sweepAngle = 110f,
+                    useCenter = false,
+                    topLeft = Offset(c.x - r, c.y - r),
+                    size = Size(r * 2, r * 2),
+                    style = Stroke(9.dp.toPx(), cap = StrokeCap.Round),
+                )
+            }
+        }
+
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(34.dp))
             Text(

@@ -13,15 +13,23 @@ import androidx.core.content.edit
  * The file is app-private and excluded from backups. Changing it requires root, which is
  * outside the threat model (see README).
  */
-class SecuritySnapshotStore(private val context: Context) {
+/** Persistence for the security snapshot (an interface so the repository can be unit-tested). */
+interface SnapshotStore {
+    fun currentBootCount(): Int
+    fun load(): Pair<SecuritySnapshot, Int>?
+    fun save(snapshot: SecuritySnapshot)
+    var lastAnnouncedUnlocked: Boolean?
+}
+
+class SecuritySnapshotStore(private val context: Context) : SnapshotStore {
     private val prefs = context.getSharedPreferences("safecomp_security_state", Context.MODE_PRIVATE)
 
     /** Android's boot counter. elapsedRealtime restarts at 0 on boot, so saved times from a
      *  previous boot are meaningless. */
-    fun currentBootCount(): Int =
+    override fun currentBootCount(): Int =
         Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT, -1)
 
-    fun load(): Pair<SecuritySnapshot, Int>? {
+    override fun load(): Pair<SecuritySnapshot, Int>? {
         if (!prefs.contains(KEY_STATE)) return null
         return runCatching {
             val pendingSince = prefs.getLong(KEY_PENDING_SINCE, -1)
@@ -45,7 +53,7 @@ class SecuritySnapshotStore(private val context: Context) {
         }.getOrNull() // A corrupt file is treated as "nothing saved": start from UNKNOWN.
     }
 
-    fun save(snapshot: SecuritySnapshot) {
+    override fun save(snapshot: SecuritySnapshot) {
         prefs.edit {
             putString(KEY_STATE, snapshot.state.name)
             putString(KEY_REASON, snapshot.reason.name)
@@ -60,7 +68,7 @@ class SecuritySnapshotStore(private val context: Context) {
     }
 
     /** What the user was last told: true = "unlocked", false = "locked", null = nothing yet. */
-    var lastAnnouncedUnlocked: Boolean?
+    override var lastAnnouncedUnlocked: Boolean?
         get() = if (prefs.contains(KEY_ANNOUNCED)) prefs.getBoolean(KEY_ANNOUNCED, false) else null
         set(value) = prefs.edit {
             if (value == null) remove(KEY_ANNOUNCED) else putBoolean(KEY_ANNOUNCED, value)

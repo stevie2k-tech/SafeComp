@@ -22,6 +22,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -79,6 +81,13 @@ class VaultRepository(
 
     val files: Flow<List<VaultFile>> = dao.observeAll()
 
+    /**
+     * Held while one file is being imported, and while orphans are being cleaned up. Without
+     * it, startup cleanup could see a freshly renamed .bin whose database row isn't written
+     * yet, treat it as an orphan, and delete it.
+     */
+    private val storageLock = Mutex()
+
     private val _importProgress = MutableStateFlow<ImportProgress?>(null)
     val importProgress: StateFlow<ImportProgress?> = _importProgress.asStateFlow()
 
@@ -106,7 +115,7 @@ class VaultRepository(
             _importProgress.value = progress
             for (uri in uris) {
                 progress = try {
-                    val keptOriginal = importOne(uri, deleteOriginals)
+                    val keptOriginal = storageLock.withLock { importOne(uri, deleteOriginals) }
                     progress.copy(
                         done = progress.done + 1,
                         originalsKept = progress.originalsKept + if (keptOriginal) 1 else 0,
@@ -246,7 +255,11 @@ class VaultRepository(
     // --- Maintenance ----------------------------------------------------------------------
 
     /** Removes leftovers from a crash mid-import: temp files, and .bin files with no row. */
-    suspend fun cleanUpOrphans() = withContext(Dispatchers.IO) {
+    suspend fun cleanUpOrphans() = storageLock.withLock {
+        withContext(Dispatchers.IO) { deleteOrphans() }
+    }
+
+    private suspend fun deleteOrphans() {
         val known = dao.allIds().toSet()
         vaultDir.listFiles()?.forEach { f ->
             val orphan = f.name.endsWith(".tmp") || f.nameWithoutExtension !in known
@@ -259,7 +272,11 @@ class VaultRepository(
      * is what really matters (crypto-shredding): flash storage may keep old blocks after a
      * delete, but without the keys they're random noise.
      */
-    suspend fun wipeAll() = withContext(Dispatchers.IO) {
+    suspend fun wipeAll() = storageLock.withLock {
+        withContext(Dispatchers.IO) { wipeEverything() }
+    }
+
+    private suspend fun wipeEverything() {
         dao.clear()
         vaultDir.deleteRecursively()
         keyManager.destroyKeys()

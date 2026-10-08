@@ -24,7 +24,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -36,6 +35,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -113,8 +113,10 @@ private fun SleepingHedgehog(glow: Color, modifier: Modifier) {
         lockTilt.animateTo(0f, spring(dampingRatio = 0.3f, stiffness = Spring.StiffnessMediumLow))
     }
     val infinite = rememberInfiniteTransition(label = "hog")
-    val breathe by infinite.animateFloat(1f, 1.03f, infiniteRepeatable(tween(2600), RepeatMode.Reverse), label = "breathe")
-    val zzz by infinite.animateFloat(0f, 1f, infiniteRepeatable(tween(3200)), label = "zzz")
+    // State objects read only in draw / graphicsLayer lambdas, so animation frames never
+    // trigger recomposition.
+    val breathe = infinite.animateFloat(1f, 1.03f, infiniteRepeatable(tween(2600), RepeatMode.Reverse), label = "breathe")
+    val zzz = infinite.animateFloat(0f, 1f, infiniteRepeatable(tween(3200)), label = "zzz")
 
     Box(modifier) {
         Canvas(Modifier.fillMaxSize()) {
@@ -134,7 +136,7 @@ private fun SleepingHedgehog(glow: Color, modifier: Modifier) {
                 size = Size(r * 2.3f, r * 0.34f),
             )
 
-            scale(scaleX = 1f, scaleY = breathe, pivot = Offset(c.x, c.y + r)) {
+            scale(scaleX = 1f, scaleY = breathe.value, pivot = Offset(c.x, c.y + r)) {
                 // Back row of quills (longer, darker), then the front row.
                 drawQuills(c, r, bristle.value, length = 1.42f, count = 26, phase = 0f, dim = 0.75f)
                 drawQuills(c, r, bristle.value, length = 1.26f, count = 24, phase = 0.5f, dim = 1f)
@@ -155,7 +157,6 @@ private fun SleepingHedgehog(glow: Color, modifier: Modifier) {
         }
         // Sleeping "z"s floating up from the face.
         listOf(0f, 0.33f, 0.66f).forEachIndexed { i, offset ->
-            val t = (zzz + offset) % 1f
             Text(
                 "z",
                 fontFamily = MonoFamily,
@@ -163,8 +164,12 @@ private fun SleepingHedgehog(glow: Color, modifier: Modifier) {
                 color = Sc.TextSecondary,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .offset(x = (-28 - i * 10).dp, y = (78 - t * 48).dp)
-                    .alpha(if (t < 0.15f) t / 0.15f else 1f - t),
+                    .offset(x = (-28 - i * 10).dp, y = 78.dp)
+                    .graphicsLayer {
+                        val t = (zzz.value + offset) % 1f
+                        translationY = -t * 48.dp.toPx()
+                        alpha = if (t < 0.15f) t / 0.15f else 1f - t
+                    },
             )
         }
     }

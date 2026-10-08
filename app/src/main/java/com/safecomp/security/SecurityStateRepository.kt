@@ -5,6 +5,7 @@ import com.safecomp.data.GeofenceConfig
 import com.safecomp.demo.DemoSettings
 import com.safecomp.data.GeofenceConfigRepository
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,9 +13,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
-/** Reacts to state changes (lock handling, notifications, background grace timer). */
+/**
+ * Reacts to state changes (lock handling, notifications, background grace timer).
+ * Called in the order the changes happened. Must not call [SecurityStateRepository.dispatch].
+ */
 fun interface SecurityStateListener {
     suspend fun onStateChanged(old: SecuritySnapshot, new: SecuritySnapshot)
 }
@@ -30,7 +34,7 @@ fun interface SecurityStateListener {
  */
 class SecurityStateRepository(
     private val configRepository: GeofenceConfigRepository,
-    private val store: SecuritySnapshotStore,
+    private val store: SnapshotStore,
     private val clock: () -> Long,
     scope: CoroutineScope,
 ) {
@@ -42,6 +46,8 @@ class SecurityStateRepository(
     val snapshot: StateFlow<SecuritySnapshot> = _snapshot.asStateFlow()
 
     private val mutex = Mutex()
+    /** Orders listener calls. Listeners must not call [dispatch] themselves (it would deadlock). */
+    private val listenerMutex = Mutex()
     private val listeners = mutableListOf<SecurityStateListener>()
 
     fun addListener(listener: SecurityStateListener) {
@@ -50,11 +56,13 @@ class SecurityStateRepository(
 
     init {
         // While a grace period is running, tick once a second so it expires on time even if
-        // no new location data arrives. collectLatest restarts the loop on every change.
+        // no new location data arrives. It must LOOP: a tick before the deadline doesn't
+        // change the state, so the flow doesn't emit and wouldn't restart a one-shot tick.
+        // collectLatest cancels the loop as soon as the state does change.
         // (If the process is frozen in the background, GraceExpiryWorker does the same job.)
         scope.launch {
             _snapshot.collectLatest { snapshot ->
-                if (snapshot.pendingExit != null) {
+                while (snapshot.pendingExit != null) {
                     delay(1_000)
                     dispatch(SecurityEvent.Tick)
                 }
@@ -76,10 +84,20 @@ class SecurityStateRepository(
         // presentation day can't fight the demo.
         if (demo.simulation != null && !simulated && event.isRealLocationInput()) return
 
+        // A state change and its listeners run to completion even if the caller is cancelled
+        // (e.g. the foreground monitor stops because the app went to the background). Otherwise
+        // a listener such as the one that schedules the background lock could be skipped.
+        withContext(NonCancellable) { applyEvent(event, demo) }
+    }
+
+    private suspend fun applyEvent(event: SecurityEvent, demo: DemoSettings) {
         val params = configRepository.current()?.toParams()
-        val (old, new) = mutex.withLock {
-            val old = _snapshot.value
-            val new = SecurityStateMachine.reduce(
+        mutex.lock()
+        val old: SecuritySnapshot
+        val new: SecuritySnapshot
+        try {
+            old = _snapshot.value
+            new = SecurityStateMachine.reduce(
                 current = old,
                 event = event,
                 nowMillis = clock(),
@@ -88,11 +106,20 @@ class SecurityStateRepository(
             )
             _snapshot.value = new
             if (new != old) store.save(new)
-            old to new
+            // Hand-over-hand: take the listener lock BEFORE releasing the state lock, so
+            // listeners always see changes in the order they happened, even if a listener is
+            // slow. (Otherwise a later "locked" could be notified before an earlier
+            // "unlocked", leaving the wrong notification and log order.)
+            if (new != old) listenerMutex.lock()
+        } finally {
+            mutex.unlock()
         }
         if (new != old) {
-            // Outside the lock: a listener may dispatch an event itself.
-            synchronized(listeners) { listeners.toList() }.forEach { it.onStateChanged(old, new) }
+            try {
+                synchronized(listeners) { listeners.toList() }.forEach { it.onStateChanged(old, new) }
+            } finally {
+                listenerMutex.unlock()
+            }
         }
     }
 

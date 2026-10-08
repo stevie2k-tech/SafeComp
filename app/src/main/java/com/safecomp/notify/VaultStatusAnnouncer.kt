@@ -3,7 +3,7 @@ package com.safecomp.notify
 import com.safecomp.security.Announcement
 import com.safecomp.security.Announcements
 import com.safecomp.security.SecuritySnapshot
-import com.safecomp.security.SecuritySnapshotStore
+import com.safecomp.security.SnapshotStore
 import com.safecomp.security.SecurityStateListener
 import com.safecomp.security.StateReason
 import com.safecomp.ui.components.description
@@ -11,7 +11,7 @@ import com.safecomp.ui.components.description
 /** Posts "Vault locked" / "Vault unlocked" when [Announcements] says the user should know. */
 class VaultStatusAnnouncer(
     private val notifier: Notifier,
-    private val store: SecuritySnapshotStore,
+    private val store: SnapshotStore,
     private val isDemoActive: () -> Boolean,
 ) : SecurityStateListener {
 
