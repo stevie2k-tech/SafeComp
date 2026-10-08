@@ -1,5 +1,6 @@
 package com.safecomp.ui.geofence
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,31 +8,29 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.MyLocation
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.outlined.Place
+import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material.icons.outlined.Save
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.TripOrigin
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,14 +39,24 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.safecomp.data.GeofenceConfig
+import com.safecomp.ui.components.GlassCard
+import com.safecomp.ui.components.IconBadge
+import com.safecomp.ui.components.PrimaryButton
+import com.safecomp.ui.components.ScTopBar
+import com.safecomp.ui.components.ScreenBackground
+import com.safecomp.ui.components.SecondaryButton
+import com.safecomp.ui.components.SectionLabel
 import com.safecomp.ui.components.SecureDialog
+import com.safecomp.ui.theme.MonoFamily
+import com.safecomp.ui.theme.Sc
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GeofenceSetupScreen(viewModel: GeofenceSetupViewModel, onDone: () -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -55,138 +64,122 @@ fun GeofenceSetupScreen(viewModel: GeofenceSetupViewModel, onDone: () -> Unit) {
 
     LaunchedEffect(state.done) { if (state.done) onDone() }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(if (state.isFirstSetup) "Set up office" else "Office location") },
-                navigationIcon = {
-                    IconButton(onClick = onDone) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
-    ) { padding ->
+    ScreenBackground(glow = Sc.Sky) {
         Column(
-            modifier = Modifier
+            Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .navigationBarsPadding(),
         ) {
-            if (!state.canEdit) {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    ),
-                ) {
-                    Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Icon(Icons.Outlined.Lock, contentDescription = null)
+            ScTopBar(
+                title = if (state.isFirstSetup) "Set up office" else "Office",
+                subtitle = "GEOFENCE",
+                onBack = onDone,
+            )
+            Column(
+                Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                if (!state.canEdit) {
+                    GlassCard(tint = Sc.Unknown) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            IconBadge(Icons.Outlined.Lock, Sc.Unknown, size = 40.dp, iconSize = 20.dp)
+                            Text(
+                                "The office can only be changed while you're inside it. Otherwise anyone " +
+                                    "holding this phone could move it to where they are and unlock the vault.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Sc.TextSecondary,
+                            )
+                        }
+                    }
+                }
+
+                Section(Icons.Outlined.Place, "Location") {
+                    SecondaryButton(
+                        text = if (state.locating) "Getting a precise fix…" else "Use my current location",
+                        onClick = viewModel::useCurrentLocation,
+                        icon = if (state.locating) null else Icons.Outlined.MyLocation,
+                        enabled = state.canEdit && !state.locating,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    if (state.locating) {
+                        CircularProgressIndicator(color = Sc.Accent, modifier = Modifier.size(20.dp).align(Alignment.CenterHorizontally), strokeWidth = 2.dp)
+                    }
+                    state.locationMessage?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = Sc.TextSecondary)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        CoordinateField("Latitude", state.latitude, viewModel::onLatitudeChange, state.canEdit, Modifier.weight(1f))
+                        CoordinateField("Longitude", state.longitude, viewModel::onLongitudeChange, state.canEdit, Modifier.weight(1f))
+                    }
+                }
+
+                Section(Icons.Outlined.TripOrigin, "Boundary") {
+                    ValueSlider(
+                        title = "Radius",
+                        value = "${state.radiusMeters.roundToInt()} M",
+                        help = "At least ${GeofenceConfig.MIN_RADIUS_METERS.roundToInt()} m: phone GPS is often off by 20–50 m, so a smaller area would flicker.",
+                        current = state.radiusMeters,
+                        onChange = { viewModel.onRadiusChange((it / 10).roundToInt() * 10f) },
+                        range = GeofenceConfig.MIN_RADIUS_METERS..GeofenceConfig.MAX_RADIUS_METERS,
+                        enabled = state.canEdit,
+                    )
+                }
+
+                Section(Icons.Outlined.Timer, "Timing") {
+                    ValueSlider(
+                        title = "Unlock after",
+                        value = "${state.dwellSeconds} S IN",
+                        help = "How long the phone must stay inside before the vault unlocks.",
+                        current = state.dwellSeconds.toFloat(),
+                        onChange = { viewModel.onDwellChange(it.roundToInt()) },
+                        range = GeofenceConfig.MIN_DWELL_SECONDS.toFloat()..GeofenceConfig.MAX_DWELL_SECONDS.toFloat(),
+                        enabled = state.canEdit,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    ValueSlider(
+                        title = "Lock after",
+                        value = "${state.graceSeconds} S OUT",
+                        help = "Grace period, so a single bad GPS reading at the edge doesn't lock you out.",
+                        current = state.graceSeconds.toFloat(),
+                        onChange = { viewModel.onGraceChange((it / 5).roundToInt() * 5) },
+                        range = GeofenceConfig.MIN_GRACE_SECONDS.toFloat()..GeofenceConfig.MAX_GRACE_SECONDS.toFloat(),
+                        enabled = state.canEdit,
+                    )
+                }
+
+                state.error?.let {
+                    Text(it, color = Sc.Outside, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 6.dp))
+                }
+
+                PrimaryButton(
+                    text = if (state.saving) "Saving…" else "Save office",
+                    onClick = viewModel::save,
+                    icon = Icons.Outlined.Save,
+                    enabled = state.canEdit && !state.saving,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                if (!state.isFirstSetup) {
+                    Spacer(Modifier.height(18.dp))
+                    SectionLabel("Danger zone", Modifier.padding(start = 6.dp))
+                    GlassCard(tint = Sc.Outside) {
                         Text(
-                            "The office location can only be changed while you're inside it. " +
-                                "Otherwise anyone holding this phone could move the office to " +
-                                "where they are and unlock the vault.",
-                            style = MaterialTheme.typography.bodyMedium,
+                            "Office moved, or handing this phone back? Reset deletes the office, every file " +
+                                "in the vault, the encryption keys and the event log.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Sc.TextSecondary,
+                        )
+                        Spacer(Modifier.height(14.dp))
+                        SecondaryButton(
+                            text = "Reset SafeComp",
+                            onClick = { confirmReset = true },
+                            icon = Icons.Outlined.RestartAlt,
+                            color = Sc.Outside,
                         )
                     }
                 }
-            }
-
-            Text("Office centre", style = MaterialTheme.typography.titleMedium)
-            OutlinedButton(
-                onClick = viewModel::useCurrentLocation,
-                enabled = state.canEdit && !state.locating,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                if (state.locating) {
-                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                } else {
-                    Icon(Icons.Outlined.MyLocation, contentDescription = null)
-                }
-                Spacer(Modifier.size(8.dp))
-                Text(if (state.locating) "Getting location…" else "Use my current location")
-            }
-            state.locationMessage?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = state.latitude,
-                    onValueChange = viewModel::onLatitudeChange,
-                    label = { Text("Latitude") },
-                    placeholder = { Text("41.311081") },
-                    singleLine = true,
-                    enabled = state.canEdit,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedTextField(
-                    value = state.longitude,
-                    onValueChange = viewModel::onLongitudeChange,
-                    label = { Text("Longitude") },
-                    placeholder = { Text("69.240562") },
-                    singleLine = true,
-                    enabled = state.canEdit,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.weight(1f),
-                )
-            }
-
-            HorizontalDivider()
-
-            LabeledSlider(
-                title = "Radius",
-                valueText = "${state.radiusMeters.roundToInt()} m",
-                help = "At least ${GeofenceConfig.MIN_RADIUS_METERS.roundToInt()} m, because phone GPS " +
-                    "is often off by 20–50 m. A smaller area would make the vault flicker.",
-                value = state.radiusMeters,
-                onValueChange = { viewModel.onRadiusChange((it / 10).roundToInt() * 10f) },
-                range = GeofenceConfig.MIN_RADIUS_METERS..GeofenceConfig.MAX_RADIUS_METERS,
-                enabled = state.canEdit,
-            )
-            LabeledSlider(
-                title = "Unlock after",
-                valueText = "${state.dwellSeconds} s inside",
-                help = "How long the phone must stay inside before the vault unlocks.",
-                value = state.dwellSeconds.toFloat(),
-                onValueChange = { viewModel.onDwellChange(it.roundToInt()) },
-                range = GeofenceConfig.MIN_DWELL_SECONDS.toFloat()..GeofenceConfig.MAX_DWELL_SECONDS.toFloat(),
-                enabled = state.canEdit,
-            )
-            LabeledSlider(
-                title = "Lock after",
-                valueText = "${state.graceSeconds} s outside",
-                help = "Grace period: how long the phone can be outside before the vault locks. " +
-                    "Stops a single bad GPS reading near the edge from locking you out.",
-                value = state.graceSeconds.toFloat(),
-                onValueChange = { viewModel.onGraceChange((it / 5).roundToInt() * 5) },
-                range = GeofenceConfig.MIN_GRACE_SECONDS.toFloat()..GeofenceConfig.MAX_GRACE_SECONDS.toFloat(),
-                enabled = state.canEdit,
-            )
-
-            state.error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-            }
-
-            Button(
-                onClick = viewModel::save,
-                enabled = state.canEdit && !state.saving,
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text(if (state.saving) "Saving…" else "Save office location") }
-
-            if (!state.isFirstSetup) {
-                Spacer(Modifier.height(16.dp))
-                HorizontalDivider()
-                Text(
-                    "Office moved, or handing this phone back? Reset removes the office location, " +
-                        "every file in the vault, the encryption keys and the event log.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                TextButton(
-                    onClick = { confirmReset = true },
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                ) { Text("Reset SafeComp", color = MaterialTheme.colorScheme.error) }
+                Spacer(Modifier.height(24.dp))
             }
         }
     }
@@ -203,26 +196,83 @@ fun GeofenceSetupScreen(viewModel: GeofenceSetupViewModel, onDone: () -> Unit) {
             },
             dismissLabel = "Cancel",
             onDismiss = { confirmReset = false },
+            destructive = true,
         )
     }
 }
 
 @Composable
-private fun LabeledSlider(
+private fun Section(icon: ImageVector, title: String, content: @Composable () -> Unit) {
+    GlassCard {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            IconBadge(icon, Sc.Sky, size = 32.dp, iconSize = 16.dp)
+            SectionLabel(title)
+        }
+        Spacer(Modifier.height(16.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { content() }
+    }
+}
+
+@Composable
+private fun CoordinateField(label: String, value: String, onChange: (String) -> Unit, enabled: Boolean, modifier: Modifier) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        label = { Text(label) },
+        singleLine = true,
+        enabled = enabled,
+        textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = MonoFamily),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        shape = RoundedCornerShape(16.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = Sc.Accent,
+            unfocusedBorderColor = Sc.Hairline,
+            focusedLabelColor = Sc.Accent,
+            unfocusedLabelColor = Sc.TextTertiary,
+            cursorColor = Sc.Accent,
+            focusedTextColor = Sc.TextPrimary,
+            unfocusedTextColor = Sc.TextPrimary,
+            disabledTextColor = Sc.TextSecondary,
+            disabledBorderColor = Sc.Hairline,
+        ),
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun ValueSlider(
     title: String,
-    valueText: String,
+    value: String,
     help: String,
-    value: Float,
-    onValueChange: (Float) -> Unit,
+    current: Float,
+    onChange: (Float) -> Unit,
     range: ClosedFloatingPointRange<Float>,
     enabled: Boolean,
 ) {
     Column {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            Text(valueText, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = Sc.TextPrimary, modifier = Modifier.weight(1f))
+            Text(
+                value,
+                style = MaterialTheme.typography.labelMedium,
+                color = Sc.Accent,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(Sc.Accent.copy(alpha = 0.12f))
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            )
         }
-        Slider(value = value, onValueChange = onValueChange, valueRange = range, enabled = enabled)
-        Text(help, style = MaterialTheme.typography.bodySmall)
+        Slider(
+            value = current,
+            onValueChange = onChange,
+            valueRange = range,
+            enabled = enabled,
+            colors = SliderDefaults.colors(
+                thumbColor = Sc.Accent,
+                activeTrackColor = Sc.Accent,
+                inactiveTrackColor = Sc.Hairline,
+            ),
+        )
+        Text(help, style = MaterialTheme.typography.bodySmall, color = Sc.TextTertiary)
     }
 }

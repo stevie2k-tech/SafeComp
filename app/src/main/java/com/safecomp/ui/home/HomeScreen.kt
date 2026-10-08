@@ -1,35 +1,34 @@
 package com.safecomp.ui.home
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Business
-import androidx.compose.material.icons.outlined.FolderZip
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LockOpen
+import androidx.compose.material.icons.outlined.Radar
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.WarningAmber
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,27 +36,31 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.safecomp.data.GeofenceConfig
 import com.safecomp.location.GeofenceRegistration
-import com.safecomp.security.SecuritySnapshot
 import com.safecomp.security.SecurityState
 import com.safecomp.security.StateReason
+import com.safecomp.ui.components.CircleIconButton
+import com.safecomp.ui.components.GlassCard
+import com.safecomp.ui.components.IconBadge
+import com.safecomp.ui.components.PrimaryButton
+import com.safecomp.ui.components.ScTopBar
+import com.safecomp.ui.components.ScreenBackground
+import com.safecomp.ui.components.SecondaryButton
+import com.safecomp.ui.components.SectionLabel
 import com.safecomp.ui.components.SecureDialog
+import com.safecomp.ui.components.StatusPill
+import com.safecomp.ui.components.color
 import com.safecomp.ui.components.description
 import com.safecomp.ui.permissions.PermissionStatus
-import com.safecomp.ui.theme.InsideGreen
-import com.safecomp.ui.theme.OutsideRed
-import com.safecomp.ui.theme.UnknownAmber
-import java.util.Locale
+import com.safecomp.ui.theme.Sc
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
@@ -69,40 +72,88 @@ fun HomeScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showSecurityInfo by rememberSaveable { mutableStateOf(false) }
-
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refresh() }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("SafeComp") },
+    val snapshot = state.snapshot
+    val stateColor = snapshot.state.color()
+
+    ScreenBackground(glow = stateColor) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .padding(bottom = 72.dp),
+        ) {
+            ScTopBar(
+                title = "SafeComp",
+                subtitle = "LOCATION-LOCKED VAULT",
                 actions = {
-                    IconButton(onClick = onOpenLog) {
-                        Icon(Icons.Outlined.History, contentDescription = "Event log")
-                    }
-                    IconButton(onClick = { showSecurityInfo = true }) {
-                        Icon(Icons.Outlined.Info, contentDescription = "How this screen is protected")
-                    }
+                    CircleIconButton(Icons.Outlined.History, "Event log", onOpenLog)
+                    CircleIconButton(Icons.Outlined.Info, "How this screen is protected", { showSecurityInfo = true })
                 },
             )
-        },
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            StateCard(state.snapshot, state.nowMillis, state.config)
-            Button(onClick = onOpenVault, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Outlined.FolderZip, contentDescription = null)
-                Text("  Open vault")
+
+            // --- Hero: the status ring ---
+            val ring = ringModel(state)
+            Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) {
+                StatusRing(
+                    color = stateColor,
+                    mode = ring.mode,
+                    progress = ring.progress,
+                    icon = if (snapshot.isUnlocked) Icons.Outlined.LockOpen else Icons.Outlined.Lock,
+                    label = snapshot.state.name,
+                    caption = ring.caption,
+                )
             }
-            PermissionBanners(state.permissions, onReviewPermissions)
-            OfficeCard(state.config, state.registration, onEditOffice, viewModel::recheckNow)
-            demoPanel()
+            Text(
+                snapshot.reason.description(),
+                style = MaterialTheme.typography.bodyLarge,
+                color = Sc.TextSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 40.dp),
+            )
+
+            Column(
+                Modifier.padding(horizontal = 20.dp, vertical = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                PrimaryButton(
+                    text = if (snapshot.isUnlocked) "Open vault" else "Vault",
+                    onClick = onOpenVault,
+                    icon = if (snapshot.isUnlocked) Icons.Outlined.LockOpen else Icons.Outlined.Lock,
+                    trailing = if (state.loaded) "${state.fileCount} FILE${if (state.fileCount == 1) "" else "S"}" else null,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                PermissionWarnings(state.permissions, onReviewPermissions)
+
+                AnimatedVisibility(visible = state.loaded, enter = fadeIn()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Tile(
+                            icon = Icons.Outlined.Business,
+                            tint = Sc.Sky,
+                            label = "Office",
+                            value = state.config?.let { "${it.radiusMeters.roundToInt()} m" } ?: "Set up",
+                            detail = state.config?.let { "${it.dwellSeconds}s in · ${it.graceSeconds}s out" } ?: "Not configured",
+                            onClick = onEditOffice,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Tile(
+                            icon = Icons.Outlined.History,
+                            tint = Sc.Violet,
+                            label = "Activity",
+                            value = "${state.eventsToday}",
+                            detail = "events today",
+                            onClick = onOpenLog,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+
+                MonitoringRow(state.registration, onRecheck = viewModel::recheckNow)
+                demoPanel()
+            }
         }
     }
 
@@ -117,126 +168,92 @@ fun HomeScreen(
     }
 }
 
-@Composable
-private fun StateCard(snapshot: SecuritySnapshot, now: Long, config: GeofenceConfig?) {
-    val (color, icon) = when (snapshot.state) {
-        SecurityState.INSIDE -> InsideGreen to Icons.Outlined.LockOpen
-        SecurityState.OUTSIDE -> OutsideRed to Icons.Outlined.Lock
-        SecurityState.UNKNOWN -> UnknownAmber to Icons.AutoMirrored.Outlined.HelpOutline
-    }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = color, contentColor = Color.White),
-    ) {
-        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(icon, contentDescription = null, modifier = Modifier.size(28.dp))
-                Text(
-                    if (snapshot.isUnlocked) "Vault unlocked" else "Vault locked",
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
-            Text(snapshot.state.name, style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
-            Text(snapshot.reason.description(), style = MaterialTheme.typography.bodyMedium)
+private class RingModel(val mode: RingMode, val progress: Float, val caption: String)
 
-            // Countdowns. These are display only: the state machine makes the real decision.
-            snapshot.pendingExit?.let { pending ->
-                val graceMillis = (config?.graceSeconds ?: 0) * 1000L
-                val left = ((graceMillis - (now - pending.sinceMillis)) / 1000).coerceAtLeast(0)
-                Text(
-                    "Leaving the office area. Locking in $left s unless you're back inside.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-            val enterSince = snapshot.enterEvidenceSince
-            if (snapshot.reason == StateReason.CONFIRMING_INSIDE && enterSince != null && config != null) {
-                val left = ((config.dwellSeconds * 1000L - (now - enterSince)) / 1000).coerceAtLeast(0)
-                Text(
-                    "Unlocking in about $left s if you stay inside.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
+private fun ringModel(state: HomeUiState): RingModel {
+    val s = state.snapshot
+    val config = state.config
+    val pending = s.pendingExit
+    val enterSince = s.enterEvidenceSince
+    return when {
+        pending != null && config != null -> {
+            val grace = config.graceSeconds * 1000L
+            val left = (grace - (state.nowMillis - pending.sinceMillis)).coerceAtLeast(0)
+            RingModel(RingMode.DRAINING, left.toFloat() / grace, "LOCKS IN ${left / 1000} S")
         }
+        s.reason == StateReason.CONFIRMING_INSIDE && enterSince != null && config != null -> {
+            val dwell = config.dwellSeconds * 1000L
+            val done = (state.nowMillis - enterSince).coerceIn(0, dwell)
+            RingModel(RingMode.FILLING, done.toFloat() / dwell, "UNLOCKS IN ${(dwell - done) / 1000} S")
+        }
+        s.reason == StateReason.CHECKING -> RingModel(RingMode.CHECKING, 0f, "CHECKING…")
+        s.isUnlocked -> RingModel(RingMode.STEADY, 1f, "VAULT OPEN")
+        else -> RingModel(RingMode.STEADY, 1f, "VAULT LOCKED")
     }
 }
 
 @Composable
-private fun OfficeCard(
-    config: GeofenceConfig?,
-    registration: GeofenceRegistration,
-    onEditOffice: () -> Unit,
-    onRecheck: () -> Unit,
+private fun Tile(
+    icon: ImageVector,
+    tint: androidx.compose.ui.graphics.Color,
+    label: String,
+    value: String,
+    detail: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Outlined.Business, contentDescription = null)
-                Text("Office", style = MaterialTheme.typography.titleMedium)
-            }
-            if (config == null) {
-                Text("Not set up yet.", style = MaterialTheme.typography.bodyMedium)
-                Button(onClick = onEditOffice) { Text("Set up office location") }
-                return@Column
-            }
-            Text(
-                String.format(Locale.US, "%.5f, %.5f", config.latitude, config.longitude) +
-                    " · radius ${config.radiusMeters.roundToInt()} m",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text(
-                "Unlocks after ${config.dwellSeconds} s inside · locks after ${config.graceSeconds} s outside",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Text(registration.description(), style = MaterialTheme.typography.bodySmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onRecheck) {
-                    Icon(Icons.Outlined.Refresh, contentDescription = null)
-                    Text(" Check now")
-                }
-                OutlinedButton(onClick = onEditOffice) { Text("Edit") }
-            }
+    GlassCard(modifier = modifier, onClick = onClick, contentPadding = androidx.compose.foundation.layout.PaddingValues(18.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBadge(icon, tint, size = 38.dp, iconSize = 19.dp)
+            Spacer(Modifier.weight(1f))
+            Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = Sc.TextTertiary, modifier = Modifier.size(18.dp))
         }
+        Spacer(Modifier.height(16.dp))
+        SectionLabel(label)
+        Text(value, style = MaterialTheme.typography.headlineSmall, color = Sc.TextPrimary)
+        Text(detail, style = MaterialTheme.typography.bodySmall, color = Sc.TextSecondary)
     }
 }
 
-private fun GeofenceRegistration.description(): String = when (this) {
-    GeofenceRegistration.Active -> "Background monitoring: on"
-    GeofenceRegistration.ForegroundOnly -> "Background monitoring: off (checks only while SafeComp is open)"
-    GeofenceRegistration.NotConfigured -> "Background monitoring: not registered"
-    is GeofenceRegistration.Failed -> "Background monitoring failed: $message"
+@Composable
+private fun MonitoringRow(registration: GeofenceRegistration, onRecheck: () -> Unit) {
+    val (text, color) = when (registration) {
+        GeofenceRegistration.Active -> "BACKGROUND MONITORING ON" to Sc.Inside
+        GeofenceRegistration.ForegroundOnly -> "CHECKS ONLY WHILE OPEN" to Sc.Unknown
+        GeofenceRegistration.NotConfigured -> "GEOFENCE NOT REGISTERED" to Sc.TextTertiary
+        is GeofenceRegistration.Failed -> "GEOFENCE ERROR" to Sc.Outside
+    }
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Outlined.Radar, null, tint = Sc.TextTertiary, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.size(8.dp))
+        StatusPill(text, color)
+        Spacer(Modifier.size(10.dp))
+        CircleIconButton(Icons.Outlined.Refresh, "Check location now", onRecheck)
+    }
 }
 
 @Composable
-private fun PermissionBanners(status: PermissionStatus, onReviewPermissions: () -> Unit) {
+private fun PermissionWarnings(status: PermissionStatus, onReviewPermissions: () -> Unit) {
     val problems = buildList {
-        if (!status.preciseLocation) {
-            add("Precise location is off. SafeComp can't confirm you're in the office, so the vault stays locked.")
-        }
-        if (status.preciseLocation && !status.backgroundLocation) {
-            add("Background location is off. SafeComp only checks your location while it's open, so lock notifications may be late.")
-        }
-        if (!status.notifications) {
-            add("Notifications are off. You won't be told when the vault locks or unlocks.")
-        }
+        if (!status.preciseLocation) add("Precise location is off, so the vault stays locked.")
+        if (status.preciseLocation && !status.backgroundLocation) add("Background location is off: lock alerts may be late.")
+        if (!status.notifications) add("Notifications are off: you won't be told when the vault locks.")
     }
     if (problems.isEmpty()) return
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer,
-            contentColor = MaterialTheme.colorScheme.onErrorContainer,
-        ),
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Outlined.WarningAmber, contentDescription = null)
-                Text("Missing permissions", style = MaterialTheme.typography.titleMedium)
-            }
-            problems.forEach { Text("• $it", style = MaterialTheme.typography.bodyMedium) }
-            OutlinedButton(onClick = onReviewPermissions) { Text("Review permissions") }
+    GlassCard(tint = Sc.Unknown) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            IconBadge(Icons.Outlined.WarningAmber, Sc.Unknown, size = 38.dp, iconSize = 19.dp)
+            Text("Needs your attention", style = MaterialTheme.typography.titleMedium, color = Sc.TextPrimary)
         }
+        Spacer(Modifier.height(12.dp))
+        problems.forEach {
+            Text("•  $it", style = MaterialTheme.typography.bodyMedium, color = Sc.TextSecondary)
+        }
+        Spacer(Modifier.height(14.dp))
+        SecondaryButton("Review permissions", onReviewPermissions, icon = Icons.Outlined.Shield)
     }
 }

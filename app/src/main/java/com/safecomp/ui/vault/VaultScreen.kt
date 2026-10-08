@@ -10,37 +10,36 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
 import androidx.compose.material.icons.automirrored.outlined.TextSnippet
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AudioFile
-import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.PictureAsPdf
+import androidx.compose.material.icons.outlined.UploadFile
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +48,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -56,10 +56,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.safecomp.data.FileKind
+import com.safecomp.security.StateReason
+import com.safecomp.ui.components.DialogShape
+import com.safecomp.ui.components.GlassCard
 import com.safecomp.ui.components.GraceBanner
+import com.safecomp.ui.components.IconBadge
+import com.safecomp.ui.components.PrimaryButton
+import com.safecomp.ui.components.ScTopBar
+import com.safecomp.ui.components.ScreenBackground
+import com.safecomp.ui.components.SectionLabel
 import com.safecomp.ui.components.SecureDialog
 import com.safecomp.ui.components.SecureDialogProperties
 import com.safecomp.ui.locked.LockedHedgehogScreen
+import com.safecomp.ui.theme.Sc
 import com.safecomp.vault.ImportProgress
 import kotlinx.coroutines.flow.Flow
 
@@ -68,7 +77,6 @@ private val ImportMimeTypes = arrayOf(
     "image/*", "video/*", "audio/*", "application/pdf", "text/*", "application/json",
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VaultScreen(
     viewModel: VaultViewModel,
@@ -87,44 +95,57 @@ fun VaultScreen(
         if (uris.isNotEmpty()) viewModel.onFilesPicked(uris)
     }
 
-    Scaffold(
-        topBar = {
-            Column {
-                TopAppBar(
-                    title = { Text("Vault") },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+    val glow = when (val s = state) {
+        is VaultUiState.Unlocked -> Sc.Inside
+        is VaultUiState.Locked -> if (s.reason == StateReason.OUTSIDE_FIX || s.reason == StateReason.OUTSIDE_GEOFENCE) Sc.Outside else Sc.Unknown
+        VaultUiState.Loading -> null
+    }
+
+    ScreenBackground(glow = glow) {
+        Column(Modifier.fillMaxSize()) {
+            val unlocked = state as? VaultUiState.Unlocked
+            ScTopBar(
+                title = "Vault",
+                subtitle = when (val s = state) {
+                    is VaultUiState.Unlocked -> "${s.items.size} FILE${if (s.items.size == 1) "" else "S"} · AES-256-GCM"
+                    is VaultUiState.Locked -> "LOCKED"
+                    VaultUiState.Loading -> " "
+                },
+                onBack = onBack,
+            )
+            GraceBanner(graceSecondsLeft)
+
+            when (val s = state) {
+                VaultUiState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
+                    CircularProgressIndicator(color = Sc.Accent)
+                }
+                is VaultUiState.Locked -> LockedHedgehogScreen(s.reason)
+                is VaultUiState.Unlocked -> Box(Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        progress?.let { item(key = "progress") { ImportProgressCard(it, viewModel::dismissImportProgress) } }
+                        if (s.items.isEmpty()) {
+                            item(key = "empty") { EmptyVault() }
+                        } else {
+                            item(key = "label") { SectionLabel("Encrypted files", Modifier.padding(start = 6.dp, top = 6.dp, bottom = 2.dp)) }
+                            items(s.items, key = { it.id }) { item ->
+                                VaultRow(item, onOpen = { onOpenFile(item.id) }, onDelete = { confirmDelete = item })
+                            }
                         }
-                    },
-                )
-                GraceBanner(graceSecondsLeft)
-            }
-        },
-        floatingActionButton = {
-            if (state is VaultUiState.Unlocked) {
-                ExtendedFloatingActionButton(
-                    onClick = { picker.launch(ImportMimeTypes) },
-                    icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
-                    text = { Text("Import") },
-                )
-            }
-        },
-    ) { padding ->
-        when (val s = state) {
-            VaultUiState.Loading -> Box(Modifier.fillMaxSize().padding(padding), Alignment.Center) {
-                CircularProgressIndicator()
-            }
-            is VaultUiState.Locked -> LockedHedgehogScreen(s.reason, Modifier.padding(padding))
-            is VaultUiState.Unlocked -> Column(Modifier.fillMaxSize().padding(padding)) {
-                progress?.let { ImportProgressCard(it, viewModel::dismissImportProgress) }
-                if (s.items.isEmpty()) {
-                    EmptyVault()
-                } else {
-                    LazyColumn(contentPadding = PaddingValues(bottom = 88.dp)) {
-                        items(s.items, key = { it.id }) { item ->
-                            VaultRow(item, onOpen = { onOpenFile(item.id) }, onDelete = { confirmDelete = item })
-                        }
+                    }
+                    if (unlocked != null) {
+                        PrimaryButton(
+                            text = "Import files",
+                            onClick = { picker.launch(ImportMimeTypes) },
+                            icon = Icons.Outlined.Add,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .navigationBarsPadding()
+                                .padding(20.dp)
+                                .fillMaxWidth(),
+                        )
                     }
                 }
             }
@@ -149,6 +170,7 @@ fun VaultScreen(
             },
             dismissLabel = "Cancel",
             onDismiss = { confirmDelete = null },
+            destructive = true,
         )
     }
 }
@@ -156,16 +178,17 @@ fun VaultScreen(
 @Composable
 private fun EmptyVault() {
     Column(
-        Modifier.fillMaxSize().padding(32.dp),
+        Modifier.fillMaxWidth().padding(top = 80.dp, start = 24.dp, end = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Icon(Icons.Outlined.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-        Text("The vault is empty", style = MaterialTheme.typography.titleMedium)
+        IconBadge(Icons.Outlined.UploadFile, Sc.Accent, size = 76.dp, iconSize = 34.dp)
+        Text("Your vault is empty", style = MaterialTheme.typography.titleLarge, color = Sc.TextPrimary)
         Text(
-            "Tap Import to add documents, photos, videos or audio. Each file is encrypted as " +
-                "it's imported and can only be opened in the office.",
+            "Import documents, photos, videos or audio. Each file is encrypted as it's imported " +
+                "and only opens inside the office.",
             style = MaterialTheme.typography.bodyMedium,
+            color = Sc.TextSecondary,
             textAlign = TextAlign.Center,
         )
     }
@@ -174,45 +197,71 @@ private fun EmptyVault() {
 @Composable
 private fun VaultRow(item: VaultItem, onOpen: () -> Unit, onDelete: () -> Unit) {
     val context = LocalContext.current
-    val details = listOf(
+    val meta = listOf(
         item.kind.label,
         Formatter.formatShortFileSize(context, item.sizeBytes),
         DateUtils.formatDateTime(context, item.importedAt, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH),
-    ).joinToString(" · ")
-    ListItem(
-        modifier = Modifier.clickable(onClick = onOpen),
-        leadingContent = { Icon(item.kind.icon, contentDescription = null) },
-        headlineContent = { Text(item.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        supportingContent = { Text(details) },
-        trailingContent = {
-            IconButton(onClick = onDelete) { Icon(Icons.Outlined.Delete, contentDescription = "Delete") }
-        },
-    )
+    ).joinToString(" · ").uppercase()
+    GlassCard(onClick = onOpen, contentPadding = PaddingValues(start = 14.dp, top = 14.dp, bottom = 14.dp, end = 6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBadge(item.kind.icon, item.kind.tint)
+            Spacer(Modifier.size(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    item.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = Sc.TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(meta, style = MaterialTheme.typography.labelSmall, color = Sc.TextTertiary, maxLines = 1)
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Outlined.DeleteOutline, contentDescription = "Delete", tint = Sc.TextTertiary)
+            }
+        }
+    }
 }
 
 @Composable
 private fun ImportProgressCard(progress: ImportProgress, onDismiss: () -> Unit) {
-    Card(Modifier.fillMaxWidth().padding(16.dp)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (progress.running) {
-                Text("Encrypting ${progress.done + progress.failed + 1} of ${progress.total}…")
-                LinearProgressIndicator(
-                    progress = { (progress.done + progress.failed).toFloat() / progress.total },
-                    modifier = Modifier.fillMaxWidth(),
+    GlassCard(tint = if (progress.originalsKept > 0) Sc.Unknown else Sc.Accent) {
+        if (progress.running) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Lock, null, tint = Sc.Accent, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.size(10.dp))
+                Text("Encrypting", style = MaterialTheme.typography.titleSmall, color = Sc.TextPrimary)
+                Spacer(Modifier.weight(1f))
+                Text("${progress.done + progress.failed + 1}/${progress.total}", style = MaterialTheme.typography.labelMedium, color = Sc.Accent)
+            }
+            Spacer(Modifier.height(12.dp))
+            LinearProgressIndicator(
+                progress = { (progress.done + progress.failed).toFloat() / progress.total },
+                modifier = Modifier.fillMaxWidth(),
+                color = Sc.Accent,
+                trackColor = Sc.Hairline,
+            )
+        } else {
+            Text(
+                "Imported ${progress.done} of ${progress.total} file${if (progress.total == 1) "" else "s"}",
+                style = MaterialTheme.typography.titleSmall,
+                color = Sc.TextPrimary,
+            )
+            if (progress.failed > 0) {
+                Text("${progress.failed} couldn't be imported.", style = MaterialTheme.typography.bodySmall, color = Sc.Outside)
+            }
+            if (progress.originalsKept > 0) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "${progress.originalsKept} original(s) couldn't be deleted. An unencrypted copy is " +
+                        "still on the phone; please delete it yourself.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Sc.Unknown,
                 )
-            } else {
-                Text("Imported ${progress.done} of ${progress.total} files.", style = MaterialTheme.typography.titleSmall)
-                if (progress.failed > 0) Text("${progress.failed} couldn't be imported.")
-                if (progress.originalsKept > 0) {
-                    Text(
-                        "${progress.originalsKept} original(s) couldn't be deleted by SafeComp. An " +
-                            "unencrypted copy is still on the phone; please delete it yourself.",
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismiss) { Text("OK") }
-                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onDismiss) { Text("Done", color = Sc.Accent) }
             }
         }
     }
@@ -224,27 +273,45 @@ private fun ImportConfirmDialog(count: Int, onConfirm: (Boolean) -> Unit, onCanc
     AlertDialog(
         onDismissRequest = onCancel,
         properties = SecureDialogProperties,
-        title = { Text(if (count == 1) "Import 1 file?" else "Import $count files?") },
+        shape = DialogShape,
+        containerColor = Sc.SurfaceHigh,
+        icon = { IconBadge(Icons.Outlined.Lock, Sc.Accent) },
+        title = {
+            Text(
+                if (count == 1) "Encrypt 1 file?" else "Encrypt $count files?",
+                style = MaterialTheme.typography.titleLarge,
+                color = Sc.TextPrimary,
+            )
+        },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Each file will be encrypted into the vault.")
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "Each file is encrypted with AES-256-GCM into the vault.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Sc.TextSecondary,
+                )
                 Row(
                     Modifier
                         .fillMaxWidth()
                         .clickable { deleteOriginals = !deleteOriginals },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Checkbox(checked = deleteOriginals, onCheckedChange = { deleteOriginals = it })
-                    Text("Delete the originals (recommended)")
+                    Checkbox(
+                        checked = deleteOriginals,
+                        onCheckedChange = { deleteOriginals = it },
+                        colors = CheckboxDefaults.colors(checkedColor = Sc.Accent, checkmarkColor = Sc.Bg),
+                    )
+                    Text("Delete the originals (recommended)", style = MaterialTheme.typography.bodyMedium, color = Sc.TextPrimary)
                 }
                 Text(
                     "Otherwise an unencrypted copy stays on the phone, outside SafeComp's protection.",
                     style = MaterialTheme.typography.bodySmall,
+                    color = Sc.TextTertiary,
                 )
             }
         },
-        confirmButton = { TextButton(onClick = { onConfirm(deleteOriginals) }) { Text("Import") } },
-        dismissButton = { TextButton(onClick = onCancel) { Text("Cancel") } },
+        confirmButton = { TextButton(onClick = { onConfirm(deleteOriginals) }) { Text("Encrypt", color = Sc.Accent) } },
+        dismissButton = { TextButton(onClick = onCancel) { Text("Cancel", color = Sc.TextSecondary) } },
     )
 }
 
@@ -266,4 +333,14 @@ private val FileKind.icon: ImageVector
         FileKind.VIDEO -> Icons.Outlined.Movie
         FileKind.AUDIO -> Icons.Outlined.AudioFile
         FileKind.OTHER -> Icons.AutoMirrored.Outlined.InsertDriveFile
+    }
+
+private val FileKind.tint: Color
+    get() = when (this) {
+        FileKind.IMAGE -> Sc.Violet
+        FileKind.PDF -> Sc.Outside
+        FileKind.TEXT -> Sc.Sky
+        FileKind.VIDEO -> Sc.Unknown
+        FileKind.AUDIO -> Sc.Inside
+        FileKind.OTHER -> Sc.TextSecondary
     }

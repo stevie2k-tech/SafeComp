@@ -1,14 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Shield with a keyhole, drawn inside the 66dp adaptive-icon safe zone. -->
+<!-- Midnight vault icon: a cyan-to-blue shield with a keyhole, inside the 66dp safe zone. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Soft glow behind the shield. -->
+    <path android:pathData="M54,22 L80,32 L80,54 C80,71 68,82 54,87 C40,82 28,71 28,54 L28,32 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="54"
+                android:centerY="52"
+                android:gradientRadius="40"
+                android:startColor="#3367E8F9"
+                android:endColor="#0067E8F9" />
+        </aapt:attr>
+    </path>
+    <!-- Shield. -->
+    <path android:pathData="M54,28 L75,36 L75,54 C75,67.5 65.5,76.5 54,80.5 C42.5,76.5 33,67.5 33,54 L33,36 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="38"
+                android:startY="28"
+                android:endX="72"
+                android:endY="80"
+                android:startColor="#FF67E8F9"
+                android:endColor="#FF3B82F6" />
+        </aapt:attr>
+    </path>
+    <!-- Keyhole. -->
     <path
-        android:fillColor="#FFF7F4EF"
-        android:pathData="M54,28 L76,36 L76,54 C76,68 66,78 54,82 C42,78 32,68 32,54 L32,36 Z" />
-    <path
-        android:fillColor="#FF1F4E5F"
-        android:pathData="M54,46 C57.3,46 60,48.7 60,52 C60,54.2 58.8,56.1 57,57.1 L58.5,66 L49.5,66 L51,57.1 C49.2,56.1 48,54.2 48,52 C48,48.7 50.7,46 54,46 Z" />
+        android:fillColor="#FF06080C"
+        android:pathData="M54,44 C57.3,44 60,46.7 60,50 C60,52.2 58.8,54.1 57,55.1 L58.5,64 L49.5,64 L51,55.1 C49.2,54.1 48,52.2 48,50 C48,46.7 50.7,44 54,44 Z" />
 </vector>

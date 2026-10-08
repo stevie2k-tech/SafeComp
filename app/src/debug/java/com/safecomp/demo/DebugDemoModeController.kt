@@ -5,19 +5,20 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Science
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,6 +30,10 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.safecomp.security.SecurityEvent
+import com.safecomp.ui.components.GlassCard
+import com.safecomp.ui.components.IconBadge
+import com.safecomp.ui.components.SectionLabel
+import com.safecomp.ui.theme.Sc
 import com.safecomp.security.SecurityStateRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -110,38 +115,58 @@ internal class DebugDemoModeController(
     @Composable
     override fun ControlPanel(modifier: Modifier) {
         val current by settings.collectAsStateWithLifecycle()
-        Card(
-            modifier = modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = DemoAmber.copy(alpha = 0.15f)),
-        ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Outlined.Science, contentDescription = null)
-                    Text("Demo mode (debug build only)", style = MaterialTheme.typography.titleMedium)
+        GlassCard(modifier = modifier.fillMaxWidth(), tint = DemoAmber) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                IconBadge(Icons.Outlined.Science, DemoAmber, size = 38.dp, iconSize = 19.dp)
+                Column {
+                    Text("Demo mode", style = MaterialTheme.typography.titleMedium, color = Sc.TextPrimary)
+                    SectionLabel("Debug build only")
                 }
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "Simulates the phone's position for presentations. The real dwell time, grace " +
+                    "period, notifications and event log still apply. Release builds don't contain this.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Sc.TextSecondary,
+            )
+            Spacer(Modifier.height(14.dp))
+            val options = listOf(null to "Real GPS", Simulation.INSIDE to "Inside", Simulation.OUTSIDE to "Outside")
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                options.forEachIndexed { index, (value, label) ->
+                    SegmentedButton(
+                        selected = current.simulation == value,
+                        onClick = { setSimulation(value) },
+                        shape = SegmentedButtonDefaults.itemShape(index, options.size),
+                        colors = SegmentedButtonDefaults.colors(
+                            activeContainerColor = DemoAmber.copy(alpha = 0.2f),
+                            activeContentColor = DemoAmber,
+                            activeBorderColor = DemoAmber.copy(alpha = 0.6f),
+                            inactiveContainerColor = Color.Transparent,
+                            inactiveContentColor = Sc.TextSecondary,
+                            inactiveBorderColor = Sc.Hairline,
+                        ),
+                    ) { Text(label) }
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "Simulates the phone's position for presentations. The real dwell time, grace " +
-                        "period, notifications and event log still apply. Release builds don't contain this.",
-                    style = MaterialTheme.typography.bodySmall,
+                    "Accept mock locations (emulator, fake GPS apps)",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Sc.TextPrimary,
+                    modifier = Modifier.weight(1f),
                 )
-                val options = listOf(null to "Real GPS", Simulation.INSIDE to "Inside", Simulation.OUTSIDE to "Outside")
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    options.forEachIndexed { index, (value, label) ->
-                        SegmentedButton(
-                            selected = current.simulation == value,
-                            onClick = { setSimulation(value) },
-                            shape = SegmentedButtonDefaults.itemShape(index, options.size),
-                        ) { Text(label) }
-                    }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "Accept mock locations (emulator, fake GPS apps)",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Switch(checked = current.allowMockLocations, onCheckedChange = ::setAllowMock)
-                }
+                Switch(
+                    checked = current.allowMockLocations,
+                    onCheckedChange = ::setAllowMock,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Sc.Bg,
+                        checkedTrackColor = DemoAmber,
+                        uncheckedTrackColor = Sc.SurfaceHigh,
+                        uncheckedBorderColor = Sc.Hairline,
+                    ),
+                )
             }
         }
     }
@@ -156,10 +181,10 @@ internal class DebugDemoModeController(
             null -> "mock locations accepted"
         }
         Text(
-            "DEMO MODE · $what",
+            "DEMO MODE · ${what.uppercase()}",
             color = Color.Black,
             fontWeight = FontWeight.Bold,
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.labelMedium,
             modifier = modifier
                 .background(DemoAmber, RoundedCornerShape(50))
                 .padding(horizontal = 14.dp, vertical = 6.dp),

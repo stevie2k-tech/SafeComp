@@ -1,13 +1,8 @@
 package com.safecomp.ui.navigation
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -19,6 +14,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.safecomp.AppContainer
+import com.safecomp.ui.components.LocalTopBarAccessory
 import com.safecomp.ui.geofence.GeofenceSetupScreen
 import com.safecomp.ui.geofence.GeofenceSetupViewModel
 import com.safecomp.ui.home.HomeScreen
@@ -57,7 +53,9 @@ fun SafeCompNavHost(container: AppContainer) {
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
+    // Debug builds draw a DEMO MODE badge in every top bar while demo mode is on, so a demo
+    // is never mistaken for the real thing. (In release builds the badge draws nothing.)
+    CompositionLocalProvider(LocalTopBarAccessory provides { container.demoMode.Badge(Modifier) }) {
         NavHost(navController = navController, startDestination = start) {
             composable(Routes.ONBOARDING) {
                 val vm: PermissionsViewModel = viewModel(
@@ -132,13 +130,5 @@ fun SafeCompNavHost(container: AppContainer) {
                 GeofenceSetupScreen(viewModel = vm, onDone = { navController.popBackStack() })
             }
         }
-        // Always visible while demo mode is on, so a demo is never mistaken for the real thing.
-        // (Debug builds only: in release this draws nothing.)
-        container.demoMode.Badge(
-            Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(bottom = 12.dp),
-        )
     }
 }

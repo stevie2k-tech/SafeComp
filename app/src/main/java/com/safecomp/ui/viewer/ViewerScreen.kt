@@ -16,20 +16,16 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -45,57 +41,56 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import com.safecomp.ui.components.GlassCard
 import com.safecomp.ui.components.GraceBanner
+import com.safecomp.ui.components.ScTopBar
+import com.safecomp.ui.components.ScreenBackground
+import com.safecomp.ui.theme.MonoFamily
+import com.safecomp.ui.theme.Sc
 import com.safecomp.ui.locked.LockedHedgehogScreen
 import kotlinx.coroutines.flow.Flow
 
-@kotlin.OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ViewerScreen(viewModel: ViewerViewModel, graceSecondsLeft: Flow<Long?>, onBack: () -> Unit) {
     val name by viewModel.name.collectAsStateWithLifecycle()
     val content by viewModel.content.collectAsStateWithLifecycle()
+    val locked = content as? ViewerContent.Locked
 
-    Scaffold(
-        topBar = {
-            Column {
-                TopAppBar(
-                    title = { Text(name ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
-                        }
-                    },
-                )
-                GraceBanner(graceSecondsLeft)
+    ScreenBackground(glow = if (locked != null) Sc.Outside else null) {
+        Column(Modifier.fillMaxSize()) {
+            ScTopBar(
+                title = name ?: if (locked != null) "Locked" else "",
+                subtitle = if (locked != null) "CONTENT WIPED FROM MEMORY" else "DECRYPTED IN MEMORY ONLY",
+                onBack = onBack,
+            )
+            GraceBanner(graceSecondsLeft)
+            val modifier = Modifier
+                .fillMaxSize()
+                .weight(1f)
+            when (val c = content) {
+                ViewerContent.Loading -> Box(modifier, Alignment.Center) { CircularProgressIndicator(color = Sc.Accent) }
+                is ViewerContent.Locked -> LockedHedgehogScreen(c.reason, modifier)
+                is ViewerContent.Message -> Box(modifier.padding(32.dp), Alignment.Center) {
+                    Text(c.text, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge, color = Sc.TextSecondary)
+                }
+                is ViewerContent.Image -> ZoomableImage(c.bitmap, modifier)
+                is ViewerContent.Text -> Box(modifier.verticalScroll(rememberScrollState()).padding(16.dp)) {
+                    // Deliberately NOT inside a SelectionContainer: selecting would allow copying
+                    // to the clipboard, which other apps can read.
+                    GlassCard(Modifier.fillMaxWidth()) {
+                        Text(c.text, fontFamily = MonoFamily, style = MaterialTheme.typography.bodyMedium, color = Sc.TextPrimary)
+                    }
+                }
+                is ViewerContent.Pdf -> PdfPages(c.document, modifier)
+                is ViewerContent.Media -> MediaPlayer(c.player, c.isVideo, modifier.navigationBarsPadding())
             }
-        },
-    ) { padding ->
-        val modifier = Modifier
-            .fillMaxSize()
-            .padding(padding)
-        when (val c = content) {
-            ViewerContent.Loading -> Box(modifier, Alignment.Center) { CircularProgressIndicator() }
-            is ViewerContent.Locked -> LockedHedgehogScreen(c.reason, modifier)
-            is ViewerContent.Message -> Box(modifier.padding(32.dp), Alignment.Center) {
-                Text(c.text, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
-            }
-            is ViewerContent.Image -> ZoomableImage(c.bitmap, modifier)
-            is ViewerContent.Text -> Box(modifier.verticalScroll(rememberScrollState()).padding(16.dp)) {
-                // Deliberately NOT inside a SelectionContainer: selecting would allow copying
-                // to the clipboard, which other apps can read.
-                Text(c.text, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodyMedium)
-            }
-            is ViewerContent.Pdf -> PdfPages(c.document, modifier)
-            is ViewerContent.Media -> MediaPlayer(c.player, c.isVideo, modifier)
         }
     }
 }
@@ -125,11 +120,11 @@ private fun ZoomableImage(bitmap: Bitmap, modifier: Modifier) {
 
 @Composable
 private fun PdfPages(document: PdfDocument, modifier: Modifier) {
-    BoxWithConstraints(modifier.background(MaterialTheme.colorScheme.surfaceVariant)) {
-        val widthPx = with(LocalDensity.current) { (maxWidth - 16.dp).roundToPx() }
+    BoxWithConstraints(modifier) {
+        val widthPx = with(LocalDensity.current) { (maxWidth - 32.dp).roundToPx() }
         LazyColumn(
-            contentPadding = PaddingValues(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             items(document.pageCount) { index -> PdfPage(document, index, widthPx) }
         }
@@ -148,8 +143,8 @@ private fun PdfPage(document: PdfDocument, index: Int, widthPx: Int) {
     }
     val b = bitmap
     if (b == null) {
-        Box(Modifier.fillMaxWidth().height(400.dp).background(Color.White), Alignment.Center) {
-            CircularProgressIndicator()
+        Box(Modifier.fillMaxWidth().height(400.dp).clip(RoundedCornerShape(12.dp)).background(Sc.SurfaceHigh), Alignment.Center) {
+            CircularProgressIndicator(color = Sc.Accent)
         }
     } else {
         Image(
@@ -157,7 +152,8 @@ private fun PdfPage(document: PdfDocument, index: Int, widthPx: Int) {
             contentDescription = "Page ${index + 1}",
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(b.width.toFloat() / b.height),
+                .aspectRatio(b.width.toFloat() / b.height)
+                .clip(RoundedCornerShape(12.dp)),
         )
     }
 }
@@ -167,7 +163,7 @@ private fun PdfPage(document: PdfDocument, index: Int, widthPx: Int) {
 private fun MediaPlayer(player: ExoPlayer, isVideo: Boolean, modifier: Modifier) {
     var view by remember { mutableStateOf<PlayerView?>(null) }
     AndroidView(
-        modifier = modifier.background(Color.Black),
+        modifier = modifier,
         factory = { context ->
             PlayerView(context).apply {
                 this.player = player

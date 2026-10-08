@@ -53,10 +53,14 @@ class EventLogPolicyTest {
     }
 
     @Test fun `log entries never carry location data`() {
-        // A guard against someone adding coordinates to the log later.
-        val fields = EventLogEntry::class.java.declaredFields.map { it.name.lowercase() }
-        listOf("lat", "lng", "lon", "latitude", "longitude", "coordinate", "distance", "accuracy").forEach { banned ->
-            assert(fields.none { it.contains(banned) }) { "EventLogEntry must not store '$banned'" }
+        // A guard against someone adding coordinates to the log later. Field names are split
+        // into camelCase words, so "lastLat" or "latitude" fail but "simulated" doesn't.
+        val words = EventLogEntry::class.java.declaredFields.flatMap { field ->
+            field.name.split(Regex("(?=[A-Z])|_")).map { it.lowercase() }
         }
+        listOf("lat", "lng", "lon", "latitude", "longitude", "coordinate", "coordinates", "distance", "accuracy", "location")
+            .forEach { banned ->
+                assert(banned !in words) { "EventLogEntry must not store '$banned'" }
+            }
     }
 }

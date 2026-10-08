@@ -3,7 +3,9 @@ package com.safecomp
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
+import android.graphics.Color
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.safecomp.ui.navigation.SafeCompNavHost
@@ -27,7 +29,11 @@ class MainActivity : ComponentActivity() {
             setRecentsScreenshotEnabled(false)
         }
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // Always-dark UI: light status/navigation bar icons on a transparent bar.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+        )
 
         val container = (application as SafeCompApp).container
         setContent {

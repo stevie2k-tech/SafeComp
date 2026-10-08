@@ -4,28 +4,29 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Shield
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,12 +34,21 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.safecomp.ui.components.GlassCard
+import com.safecomp.ui.components.IconBadge
+import com.safecomp.ui.components.PrimaryButton
+import com.safecomp.ui.components.ScreenBackground
+import com.safecomp.ui.components.SectionLabel
+import com.safecomp.ui.theme.Sc
 
 @Composable
 fun OnboardingScreen(viewModel: PermissionsViewModel, onFinished: () -> Unit) {
@@ -91,60 +101,68 @@ fun OnboardingScreen(viewModel: PermissionsViewModel, onFinished: () -> Unit) {
     val blocked = step in state.blockedInSettings
     val content = stepContent(step, state.status)
 
-    Scaffold { padding ->
+    ScreenBackground(glow = Sc.Accent) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .statusBarsPadding()
+                .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(horizontal = 24.dp, vertical = 20.dp),
         ) {
-            Text(
-                "Step ${step.ordinal + 1} of ${PermissionStep.entries.size}",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            LinearProgressIndicator(
-                progress = { (step.ordinal + 1f) / PermissionStep.entries.size },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(8.dp))
-            Icon(
-                content.icon,
-                contentDescription = null,
-                modifier = Modifier.size(56.dp),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-            Text(content.title, style = MaterialTheme.typography.headlineMedium)
-            Text(content.why, style = MaterialTheme.typography.bodyLarge)
+            // Segmented progress.
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                PermissionStep.entries.forEach { s ->
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .height(4.dp)
+                            .clip(CircleShape)
+                            .background(if (s.ordinal <= step.ordinal) Sc.Accent else Sc.Hairline),
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            SectionLabel("Step ${step.ordinal + 1} of ${PermissionStep.entries.size}")
+            Spacer(Modifier.height(40.dp))
+
+            Box(Modifier.align(Alignment.CenterHorizontally), contentAlignment = Alignment.Center) {
+                Box(
+                    Modifier
+                        .size(150.dp)
+                        .background(Brush.radialGradient(listOf(Sc.Accent.copy(alpha = 0.25f), Color.Transparent))),
+                )
+                IconBadge(content.icon, Sc.Accent, size = 88.dp, iconSize = 40.dp)
+            }
+            Spacer(Modifier.height(28.dp))
+            Text(content.title, style = MaterialTheme.typography.headlineMedium, color = Sc.TextPrimary)
+            Spacer(Modifier.height(10.dp))
+            Text(content.why, style = MaterialTheme.typography.bodyLarge, color = Sc.TextSecondary)
 
             content.hint?.let { hint ->
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    ),
-                ) {
-                    Text(hint, modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(18.dp))
+                GlassCard(tint = Sc.Unknown, contentPadding = PaddingValues(16.dp)) {
+                    Text(hint, style = MaterialTheme.typography.bodyMedium, color = Sc.TextPrimary)
                 }
             }
 
+            Spacer(Modifier.height(14.dp))
             PrivacyNote()
+            Spacer(Modifier.height(28.dp))
 
-            Spacer(Modifier.height(8.dp))
             when {
                 blocked -> {
                     Text(
                         "Android won't show this request again. Open Settings → Permissions to change it.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
+                        color = Sc.Outside,
                     )
-                    Button(onClick = { context.openAppSettings() }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Open app settings")
-                    }
+                    Spacer(Modifier.height(12.dp))
+                    PrimaryButton("Open app settings", { context.openAppSettings() }, Modifier.fillMaxWidth())
                 }
-                step == PermissionStep.PRECISE_LOCATION -> Button(
-                    onClick = {
+                step == PermissionStep.PRECISE_LOCATION -> PrimaryButton(
+                    "Allow precise location",
+                    {
                         locationLauncher.launch(
                             arrayOf(
                                 Manifest.permission.ACCESS_FINE_LOCATION,
@@ -152,53 +170,48 @@ fun OnboardingScreen(viewModel: PermissionsViewModel, onFinished: () -> Unit) {
                             ),
                         )
                     },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("Allow precise location") }
-
-                step == PermissionStep.BACKGROUND_LOCATION -> Button(
-                    onClick = {
+                    Modifier.fillMaxWidth(),
+                )
+                step == PermissionStep.BACKGROUND_LOCATION -> PrimaryButton(
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) "Open location settings" else "Allow all the time",
+                    {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                             backgroundLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
                         }
                     },
+                    Modifier.fillMaxWidth(),
                     enabled = state.status.preciseLocation,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) "Open location settings" else "Allow all the time")
-                }
-
-                step == PermissionStep.NOTIFICATIONS -> Button(
-                    onClick = {
+                )
+                step == PermissionStep.NOTIFICATIONS -> PrimaryButton(
+                    "Allow notifications",
+                    {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                             notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         } else {
                             context.openNotificationSettings()
                         }
                     },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("Allow notifications") }
+                    Modifier.fillMaxWidth(),
+                )
             }
-            TextButton(
-                onClick = viewModel::skip,
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-            ) { Text("Not now") }
+            Spacer(Modifier.height(10.dp))
+            TextButton(onClick = viewModel::skip, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                Text("Not now", color = Sc.TextSecondary, style = MaterialTheme.typography.labelLarge)
+            }
         }
     }
 }
 
 @Composable
 private fun PrivacyNote() {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(Icons.Outlined.Shield, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+    GlassCard(tint = Sc.Inside, contentPadding = PaddingValues(16.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconBadge(Icons.Outlined.Shield, Sc.Inside, size = 36.dp, iconSize = 18.dp)
             Text(
-                "SafeComp is not a tracking app. Your location is only compared with the office " +
-                    "area on this phone. It is never uploaded, shared, or saved in any log. " +
-                    "SafeComp has no internet access at all.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                "Not a tracking app. Your location is only compared with the office on this phone: " +
+                    "never uploaded, shared or logged. SafeComp has no internet access at all.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Sc.TextSecondary,
             )
         }
     }
