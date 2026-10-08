@@ -9,7 +9,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import com.safecomp.AppContainer
 import com.safecomp.crypto.FileTooLargeException
@@ -157,13 +159,32 @@ class ViewerViewModel(
         // No CacheDataSource anywhere in this chain, so ExoPlayer never writes media to disk.
         val source = ProgressiveMediaSource.Factory(dataSourceFactory)
             .createMediaSource(MediaItem.fromUri("safecomp://vault/${file.id}"))
-        val player = ExoPlayer.Builder(application).build().apply {
+        val player = ExoPlayer.Builder(application, mediaRenderers()).build().apply {
             setMediaSource(source)
             prepare()
             playWhenReady = true
         }
         return ViewerContent.Media(player, isVideo)
     }
+
+    /**
+     * Decoder choice for vault media.
+     *
+     * The Android emulator's own hardware decoders ("goldfish") fail mid-playback for apps that
+     * target API 37: the codec's input buffer pool rejects buffers ("Invalid block data in
+     * C2ConstLinearBlock"). Found in final testing: the same video plays with Android's software
+     * decoder, and with the goldfish decoder when targeting API 36. So emulator decoders are
+     * ranked last (they stay available as a fallback), and decoder fallback is on. Real phones
+     * use their vendor decoders and are unaffected.
+     */
+    @OptIn(UnstableApi::class)
+    private fun mediaRenderers() = DefaultRenderersFactory(application)
+        .setEnableDecoderFallback(true)
+        .setMediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
+            MediaCodecSelector.DEFAULT
+                .getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
+                .sortedBy { it.name.contains("goldfish", ignoreCase = true) }
+        }
 
     /** Sets new content, unless the vault locked while it was loading. Then it's discarded. */
     private fun setContent(new: ViewerContent) {

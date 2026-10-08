@@ -111,7 +111,12 @@ class EventLogViewModel(private val container: AppContainer) : ViewModel() {
                 id = id,
                 timestamp = timestamp,
                 kind = if (state == SecurityState.INSIDE) LogRowKind.UNLOCKED else LogRowKind.LOCKED,
-                title = if (state == SecurityState.INSIDE) "Vault unlocked" else "Vault locked",
+                title = when {
+                    state == SecurityState.INSIDE -> "Vault unlocked"
+                    previousState == SecurityState.INSIDE -> "Vault locked"
+                    // Locked to locked (e.g. OUTSIDE -> UNKNOWN): nothing was unlocked.
+                    else -> "Vault still locked"
+                },
                 detail = "${previousState?.name ?: "?"} → ${state.name}. $why",
             )
             EventType.FILE_OPEN -> {
