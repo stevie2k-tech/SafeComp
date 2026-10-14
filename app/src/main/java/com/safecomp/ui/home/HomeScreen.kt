@@ -1,5 +1,6 @@
 package com.safecomp.ui.home
 
+import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.layout.Arrangement
@@ -57,6 +58,7 @@ import com.safecomp.ui.components.SecureDialog
 import com.safecomp.ui.components.StatusPill
 import com.safecomp.ui.components.color
 import com.safecomp.ui.components.description
+import com.safecomp.ui.permissions.BackgroundAdvice
 import com.safecomp.ui.permissions.PermissionStatus
 import com.safecomp.ui.theme.Sc
 import kotlin.math.roundToInt
@@ -68,6 +70,7 @@ fun HomeScreen(
     onEditOffice: () -> Unit,
     onOpenVault: () -> Unit,
     onOpenLog: () -> Unit,
+    onOpenFocus: () -> Unit,
     demoPanel: @Composable () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -149,6 +152,17 @@ fun HomeScreen(
                             modifier = Modifier.weight(1f),
                         )
                     }
+                }
+
+                AnimatedVisibility(visible = state.loaded, enter = fadeIn()) {
+                    FocusCard(
+                        status = state.focus,
+                        workApps = state.workApps,
+                        onOpenSettings = onOpenFocus,
+                        onStart = viewModel::startFocus,
+                        onStop = viewModel::stopFocus,
+                        onLaunch = viewModel::launchWorkApp,
+                    )
                 }
 
                 MonitoringRow(state.registration, onRecheck = viewModel::recheckNow)
@@ -242,6 +256,14 @@ private fun PermissionWarnings(status: PermissionStatus, onReviewPermissions: ()
         if (!status.preciseLocation) add("Precise location is off, so the vault stays locked.")
         if (status.preciseLocation && !status.backgroundLocation) add("Background location is off: lock alerts may be late.")
         if (!status.notifications) add("Notifications are off: you won't be told when the vault locks.")
+        if (status.backgroundLocation && !status.batteryUnrestricted) {
+            add("Battery saving can delay lock alerts while SafeComp is closed.")
+        }
+    }
+    val brandTip = if (status.backgroundLocation && !status.batteryUnrestricted) {
+        BackgroundAdvice.forManufacturer(Build.MANUFACTURER)
+    } else {
+        null
     }
     if (problems.isEmpty()) return
     GlassCard(tint = Sc.Unknown) {
@@ -252,6 +274,10 @@ private fun PermissionWarnings(status: PermissionStatus, onReviewPermissions: ()
         Spacer(Modifier.height(12.dp))
         problems.forEach {
             Text("•  $it", style = MaterialTheme.typography.bodyMedium, color = Sc.TextSecondary)
+        }
+        brandTip?.let {
+            Spacer(Modifier.height(8.dp))
+            Text(it, style = MaterialTheme.typography.bodySmall, color = Sc.TextTertiary)
         }
         Spacer(Modifier.height(14.dp))
         SecondaryButton("Review permissions", onReviewPermissions, icon = Icons.Outlined.Shield)

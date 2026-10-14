@@ -7,7 +7,10 @@ import androidx.room.PrimaryKey
 import com.safecomp.security.SecurityState
 import com.safecomp.security.StateReason
 
-enum class EventType { STATE_CHANGE, FILE_OPEN }
+enum class EventType { STATE_CHANGE, FILE_OPEN, FOCUS }
+
+/** FOCUS entries only: what happened to Focus Mode. Never which apps were used. */
+enum class FocusChange { STARTED, STOPPED_BY_USER, ENDED_LEFT_OFFICE, TURNED_OFF, DECLINED, NOT_STARTED }
 
 /**
  * One line of the local event log.
@@ -32,6 +35,8 @@ data class EventLogEntry(
     val fileId: String? = null,
     /** FILE_OPEN only: whether decryption was allowed. */
     val allowed: Boolean? = null,
+    /** FOCUS only. */
+    val focusChange: FocusChange? = null,
     /** Recorded while debug demo mode was on, so demo events are never mistaken for real ones. */
     @ColumnInfo(defaultValue = "0") val simulated: Boolean = false,
 ) {

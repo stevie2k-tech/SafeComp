@@ -2,6 +2,7 @@ package com.safecomp.log
 
 import com.safecomp.data.EventLogDao
 import com.safecomp.data.EventLogEntry
+import com.safecomp.data.FocusChange
 import com.safecomp.security.SecuritySnapshot
 import com.safecomp.security.SecurityStateListener
 import kotlinx.coroutines.flow.Flow
@@ -24,6 +25,10 @@ class EventLogRepository(
 
     suspend fun fileOpenAttempt(fileId: String, snapshot: SecuritySnapshot, allowed: Boolean) {
         record(EventLogPolicy.fileOpenEntry(fileId, snapshot, allowed, wallClock()))
+    }
+
+    suspend fun focusChange(change: FocusChange, snapshot: SecuritySnapshot) {
+        record(EventLogPolicy.focusEntry(change, snapshot, wallClock()))
     }
 
     private suspend fun record(entry: EventLogEntry) {

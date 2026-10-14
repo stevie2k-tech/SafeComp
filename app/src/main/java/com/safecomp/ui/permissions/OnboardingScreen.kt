@@ -22,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.BatteryChargingFull
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material.icons.outlined.Notifications
@@ -193,6 +194,11 @@ fun OnboardingScreen(viewModel: PermissionsViewModel, onFinished: () -> Unit) {
                     },
                     Modifier.fillMaxWidth(),
                 )
+                step == PermissionStep.BATTERY -> PrimaryButton(
+                    "Allow background running",
+                    { context.requestBatteryUnrestricted() },
+                    Modifier.fillMaxWidth(),
+                )
             }
             Spacer(Modifier.height(10.dp))
             TextButton(onClick = viewModel::skip, modifier = Modifier.align(Alignment.CenterHorizontally)) {
@@ -250,8 +256,18 @@ private fun stepContent(step: PermissionStep, status: PermissionStatus): StepCon
     PermissionStep.NOTIFICATIONS -> StepContent(
         icon = Icons.Outlined.Notifications,
         title = "Notifications",
-        why = "So SafeComp can tell you when the vault locks as you leave the office, and when it " +
-            "unlocks again when you return. These status messages are the only notifications it sends.",
+        why = "So SafeComp can tell you when the vault locks as you leave the office and unlocks " +
+            "when you return, and when Focus Mode starts or ends. It sends no other notifications.",
         hint = null,
+    )
+    PermissionStep.BATTERY -> StepContent(
+        icon = Icons.Outlined.BatteryChargingFull,
+        title = "Keep SafeComp running",
+        why = "Battery saving can pause apps in the background. Then the \"Vault locked\" " +
+            "notice can arrive late after you leave the office. Allowing SafeComp to run in " +
+            "the background fixes that. It uses almost no battery: Android wakes it only when " +
+            "you cross the office boundary.",
+        hint = BackgroundAdvice.forManufacturer(Build.MANUFACTURER)
+            ?: "When Android asks, choose \"Allow\".",
     )
 }

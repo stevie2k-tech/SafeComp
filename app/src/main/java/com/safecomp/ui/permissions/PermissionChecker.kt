@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.PowerManager
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 
@@ -16,6 +17,9 @@ data class PermissionStatus(
     val notifications: Boolean,
     /** The user picked "Approximate" in the Android 12+ dialog. We explain why that won't work. */
     val approximateOnly: Boolean = false,
+    /** SafeComp is excluded from battery optimisation, so Android won't hold back its
+     *  background geofence work. Not a permission, so [allGranted] ignores it. */
+    val batteryUnrestricted: Boolean = true,
 ) {
     val allGranted: Boolean get() = preciseLocation && backgroundLocation && notifications
 }
@@ -37,7 +41,9 @@ class PermissionChecker(private val context: Context) {
             NotificationManagerCompat.from(context).areNotificationsEnabled()
         }
         val approximateOnly = !precise && isGranted(Manifest.permission.ACCESS_COARSE_LOCATION)
-        return PermissionStatus(precise, background, notifications, approximateOnly)
+        val battery = context.getSystemService(PowerManager::class.java)
+            .isIgnoringBatteryOptimizations(context.packageName)
+        return PermissionStatus(precise, background, notifications, approximateOnly, battery)
     }
 
     private fun isGranted(permission: String) =

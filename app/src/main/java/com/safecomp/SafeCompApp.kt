@@ -16,5 +16,7 @@ class SafeCompApp : Application() {
         ProcessLifecycleOwner.get().lifecycle.addObserver(container.foregroundMonitor)
         // Close open files when the app goes to the background.
         ProcessLifecycleOwner.get().lifecycle.addObserver(container.vaultSession)
+        // Focus Mode may only start while a SafeComp screen is visible.
+        ProcessLifecycleOwner.get().lifecycle.addObserver(container.focusController)
     }
 }

@@ -2,6 +2,7 @@ package com.safecomp.log
 
 import com.safecomp.data.EventLogEntry
 import com.safecomp.data.EventType
+import com.safecomp.data.FocusChange
 import com.safecomp.security.SecuritySnapshot
 
 /** Pure rules for what goes into the event log, so they can be unit-tested. */
@@ -31,6 +32,17 @@ object EventLogPolicy {
             reason = snapshot.reason,
             fileId = fileId,
             allowed = allowed,
+        )
+
+    /** Focus Mode starting or ending. Records only that it happened and why, never which
+     *  apps were used while it was on: Focus Mode is not a way to watch the employee. */
+    fun focusEntry(change: FocusChange, snapshot: SecuritySnapshot, wallClockMillis: Long) =
+        EventLogEntry(
+            timestamp = wallClockMillis,
+            type = EventType.FOCUS,
+            state = snapshot.state,
+            reason = snapshot.reason,
+            focusChange = change,
         )
 
     fun retentionCutoff(wallClockMillis: Long): Long =

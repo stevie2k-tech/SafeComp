@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.safecomp.AppContainer
 import com.safecomp.data.EventLogEntry
 import com.safecomp.data.EventType
+import com.safecomp.data.FocusChange
 import com.safecomp.security.SecurityState
 import com.safecomp.ui.components.description
 import com.safecomp.vault.VaultLockedException
@@ -19,9 +20,9 @@ import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-enum class LogFilter(val label: String) { ALL("All"), STATE("State"), FILES("Files"), DENIED("Blocked") }
+enum class LogFilter(val label: String) { ALL("All"), STATE("State"), FILES("Files"), DENIED("Blocked"), FOCUS("Focus") }
 
-enum class LogRowKind { UNLOCKED, LOCKED, OPEN_ALLOWED, OPEN_DENIED }
+enum class LogRowKind { UNLOCKED, LOCKED, OPEN_ALLOWED, OPEN_DENIED, FOCUS }
 
 data class LogRow(
     val id: Long,
@@ -102,6 +103,7 @@ class EventLogViewModel(private val container: AppContainer) : ViewModel() {
         LogFilter.STATE -> type == EventType.STATE_CHANGE
         LogFilter.FILES -> type == EventType.FILE_OPEN
         LogFilter.DENIED -> type == EventType.FILE_OPEN && allowed == false
+        LogFilter.FOCUS -> type == EventType.FOCUS
     }
 
     private fun EventLogEntry.toRow(names: Map<String, String>, unlocked: Boolean): LogRow {
@@ -118,6 +120,23 @@ class EventLogViewModel(private val container: AppContainer) : ViewModel() {
                     else -> "Vault still locked"
                 },
                 detail = "${previousState?.name ?: "?"} → ${state.name}. $why",
+            )
+            // Focus Mode: only that it started or ended and why. Never which apps were used.
+            EventType.FOCUS -> LogRow(
+                id = id,
+                timestamp = timestamp,
+                kind = LogRowKind.FOCUS,
+                title = when (focusChange) {
+                    FocusChange.STARTED -> "Focus Mode started"
+                    FocusChange.STOPPED_BY_USER -> "You stopped Focus Mode"
+                    FocusChange.ENDED_LEFT_OFFICE ->
+                        if (state == SecurityState.UNKNOWN) "Focus Mode ended: location not confirmed" else "Focus Mode ended: left the office"
+                    FocusChange.TURNED_OFF -> "Focus Mode turned off in settings"
+                    FocusChange.DECLINED -> "You declined Focus Mode (didn't pin)"
+                    FocusChange.NOT_STARTED -> "Focus Mode didn't start (pin request not accepted)"
+                    null -> "Focus Mode"
+                },
+                detail = "State: ${state.name}. $why",
             )
             EventType.FILE_OPEN -> {
                 val name = when {

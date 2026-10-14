@@ -147,6 +147,7 @@ class GeofenceSetupViewModel(private val container: AppContainer) : ViewModel() 
             container.geofenceConfigRepository.clear()
             container.vaultRepository.wipeAll()
             container.eventLog.clear()
+            container.focusController.reset()
             container.securityState.dispatch(SecurityEvent.ConfigChanged)
             _uiState.update { it.copy(done = true) }
         }

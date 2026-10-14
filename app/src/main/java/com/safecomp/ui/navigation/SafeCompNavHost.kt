@@ -15,6 +15,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.safecomp.AppContainer
 import com.safecomp.ui.components.LocalTopBarAccessory
+import com.safecomp.ui.focus.FocusSettingsScreen
+import com.safecomp.ui.focus.FocusSettingsViewModel
 import com.safecomp.ui.geofence.GeofenceSetupScreen
 import com.safecomp.ui.geofence.GeofenceSetupViewModel
 import com.safecomp.ui.home.HomeScreen
@@ -34,6 +36,7 @@ private object Routes {
     const val GEOFENCE = "geofence"
     const val VAULT = "vault"
     const val LOG = "log"
+    const val FOCUS = "focus"
     const val VIEWER = "viewer/{fileId}"
     fun viewer(fileId: String) = "viewer/$fileId"
 }
@@ -85,6 +88,7 @@ fun SafeCompNavHost(container: AppContainer) {
                     onEditOffice = { navController.navigate(Routes.GEOFENCE) { launchSingleTop = true } },
                     onOpenVault = { navController.navigate(Routes.VAULT) { launchSingleTop = true } },
                     onOpenLog = { navController.navigate(Routes.LOG) { launchSingleTop = true } },
+                    onOpenFocus = { navController.navigate(Routes.FOCUS) { launchSingleTop = true } },
                     demoPanel = { container.demoMode.ControlPanel(Modifier) },
                 )
             }
@@ -93,6 +97,12 @@ fun SafeCompNavHost(container: AppContainer) {
                     factory = viewModelFactory { initializer { EventLogViewModel(container) } },
                 )
                 EventLogScreen(viewModel = vm, onBack = { navController.popBackStack() })
+            }
+            composable(Routes.FOCUS) {
+                val vm: FocusSettingsViewModel = viewModel(
+                    factory = viewModelFactory { initializer { FocusSettingsViewModel(container) } },
+                )
+                FocusSettingsScreen(viewModel = vm, onBack = { navController.popBackStack() })
             }
             composable(Routes.VAULT) {
                 val vm: VaultViewModel = viewModel(

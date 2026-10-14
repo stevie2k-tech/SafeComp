@@ -14,11 +14,27 @@
     <!-- Geofences are wiped on reboot; this lets us register the office geofence again. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- Lets SafeComp show Android's one-tap "allow background running" dialog, so battery
+         saving doesn't delay the background geofence exit and the "Vault locked" notice.
+         Grants no access to any data. (Google Play limits this to certain app types; a Play
+         build would open the battery settings page instead.) -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <!-- Privacy by design: SafeComp never talks to a server. tools:node="remove" strips
          INTERNET even if a library tries to add it through manifest merging. -->
     <uses-permission
         android:name="android.permission.INTERNET"
         tools:node="remove" />
+
+    <!-- Focus Mode's work-app picker lists apps that have a home-screen icon. This narrow
+         query replaces QUERY_ALL_PACKAGES: SafeComp can't see background services or apps
+         without an icon. The list stays on the phone. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
 
     <!-- allowBackup=false + dataExtractionRules: the encrypted vault, database and
          keyset are never copied into cloud backups or device-to-device transfers. -->
@@ -59,5 +75,11 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+
+        <!-- The "Stop Focus Mode" notification button. Not exported: only our own
+             PendingIntent can reach it. -->
+        <receiver
+            android:name=".focus.FocusActionReceiver"
+            android:exported="false" />
     </application>
 </manifest>

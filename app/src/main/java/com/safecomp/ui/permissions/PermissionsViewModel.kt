@@ -8,8 +8,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
 /** The permissions are requested one at a time, in this order. Android requires background
- *  location to be requested separately, and only after foreground location is granted. */
-enum class PermissionStep { PRECISE_LOCATION, BACKGROUND_LOCATION, NOTIFICATIONS }
+ *  location to be requested separately, and only after foreground location is granted.
+ *  BATTERY isn't a permission: it asks Android not to hold back SafeComp's background work. */
+enum class PermissionStep { PRECISE_LOCATION, BACKGROUND_LOCATION, NOTIFICATIONS, BATTERY }
 
 data class OnboardingUiState(
     val status: PermissionStatus,
@@ -74,4 +75,6 @@ fun PermissionStatus.satisfies(step: PermissionStep): Boolean = when (step) {
     PermissionStep.PRECISE_LOCATION -> preciseLocation
     PermissionStep.BACKGROUND_LOCATION -> backgroundLocation
     PermissionStep.NOTIFICATIONS -> notifications
+    // Without "Allow all the time" there is no background work to protect, so skip it.
+    PermissionStep.BATTERY -> batteryUnrestricted || !backgroundLocation
 }
