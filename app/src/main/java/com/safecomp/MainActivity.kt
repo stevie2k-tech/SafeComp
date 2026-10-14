@@ -4,7 +4,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import android.graphics.Color
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -22,7 +22,8 @@ import kotlinx.coroutines.launch
  * The app's only activity. Every screen is a Compose destination inside it, so the window
  * flags set here protect the whole app.
  */
-class MainActivity : ComponentActivity() {
+// FragmentActivity (a ComponentActivity) because Android's fingerprint/PIN prompt needs it.
+class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // SECURITY: FLAG_SECURE is set before super.onCreate() and setContent(), so no frame

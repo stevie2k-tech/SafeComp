@@ -14,6 +14,7 @@ import com.safecomp.crypto.KeyManager
 import com.safecomp.data.VaultFile
 import com.safecomp.data.VaultFileDao
 import com.safecomp.log.EventLogRepository
+import com.safecomp.security.AuthSession
 import com.safecomp.security.SecurityStateRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -70,6 +71,7 @@ class VaultRepository(
     context: Context,
     private val dao: VaultFileDao,
     private val keyManager: KeyManager,
+    private val authSession: AuthSession,
     private val securityState: SecurityStateRepository,
     private val eventLog: EventLogRepository,
     private val scope: CoroutineScope,
@@ -91,16 +93,22 @@ class VaultRepository(
     private val _importProgress = MutableStateFlow<ImportProgress?>(null)
     val importProgress: StateFlow<ImportProgress?> = _importProgress.asStateFlow()
 
-    /** Quick, non-suspending check, for code that can't suspend (e.g. a media DataSource). */
-    val isUnlockedNow: Boolean get() = securityState.snapshot.value.isUnlocked
+    /**
+     * Quick, non-suspending check, for code that can't suspend (e.g. a media DataSource).
+     * Both factors: INSIDE (where) and the session's keys in memory (who, within 5 minutes).
+     */
+    val isUnlockedNow: Boolean get() = securityState.snapshot.value.isUnlocked && keyManager.isUnlocked
+
+    /** Where you are AND who you are. The keys are loaded only after a fresh authentication. */
+    private suspend fun isUnlocked(): Boolean = securityState.isUnlockedNow() && authSession.unlockVault()
 
     private suspend fun requireUnlocked() {
-        if (!securityState.isUnlockedNow()) throw VaultLockedException()
+        if (!isUnlocked()) throw VaultLockedException()
     }
 
     /** Same check as [requireUnlocked], plus an event-log entry, allowed or denied. */
     private suspend fun requireUnlockedToOpen(file: VaultFile) {
-        val allowed = securityState.isUnlockedNow()
+        val allowed = isUnlocked()
         eventLog.fileOpenAttempt(file.id, securityState.snapshot.value, allowed)
         if (!allowed) throw VaultLockedException()
     }
@@ -136,6 +144,8 @@ class VaultRepository(
 
     /** Encrypts one picked file into the vault. Returns true if the original was NOT deleted. */
     private suspend fun importOne(uri: Uri, deleteOriginal: Boolean): Boolean {
+        // Importing needs the keys too: only inside the office, after authentication.
+        requireUnlocked()
         val name = displayName(uri) ?: "Untitled"
         val mime = resolver.getType(uri)
             ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(name.substringAfterLast('.', "").lowercase())

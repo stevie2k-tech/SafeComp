@@ -46,6 +46,17 @@ class PermissionStepsTest {
         assertTrue(foregroundOnly.satisfies(PermissionStep.BATTERY))
     }
 
+    @Test fun `the screen lock step comes after notifications and before battery`() {
+        val steps = PermissionStep.entries
+        assertEquals(steps.indexOf(PermissionStep.NOTIFICATIONS) + 1, steps.indexOf(PermissionStep.SCREEN_LOCK))
+        assertEquals(steps.indexOf(PermissionStep.SCREEN_LOCK) + 1, steps.indexOf(PermissionStep.BATTERY))
+    }
+
+    @Test fun `the screen lock step is needed until a screen lock is set`() {
+        assertFalse(all.copy(screenLock = false).satisfies(PermissionStep.SCREEN_LOCK))
+        assertTrue(all.satisfies(PermissionStep.SCREEN_LOCK))
+    }
+
     @Test fun `battery saving doesn't count as a missing permission`() {
         assertTrue(all.copy(batteryUnrestricted = false).allGranted)
     }

@@ -1,6 +1,7 @@
 package com.safecomp.log
 
 import com.safecomp.data.EventLogDao
+import com.safecomp.data.AuthChange
 import com.safecomp.data.EventLogEntry
 import com.safecomp.data.FocusChange
 import com.safecomp.security.SecuritySnapshot
@@ -29,6 +30,10 @@ class EventLogRepository(
 
     suspend fun focusChange(change: FocusChange, snapshot: SecuritySnapshot) {
         record(EventLogPolicy.focusEntry(change, snapshot, wallClock()))
+    }
+
+    suspend fun authChange(change: AuthChange, snapshot: SecuritySnapshot) {
+        record(EventLogPolicy.authEntry(change, snapshot, wallClock()))
     }
 
     private suspend fun record(entry: EventLogEntry) {

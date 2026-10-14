@@ -1,8 +1,9 @@
 # SafeComp
 
 SafeComp keeps company files in an encrypted vault on an employee's Android phone. The files can
-only be opened while the phone is inside the office geofence. If the phone is lost or stolen, or
-someone else is using it, the company data stays locked.
+only be opened while the phone is inside the office geofence **and** the owner has just confirmed
+it's them with the phone's fingerprint, face or PIN. If the phone is lost or stolen, or someone
+else is using it, the company data stays locked.
 
 It is a working MVP built for a cybersecurity scholarship project: Kotlin, Jetpack Compose, one
 activity, MVVM, minSdk 26, targetSdk 37.
@@ -35,12 +36,13 @@ flowchart LR
     DM["Demo mode<br/>(debug builds only)"] -. simulated fixes .-> SM
     SM["SecurityStateMachine<br/>pure Kotlin reducer"] --> REPO["SecurityStateRepository<br/>snapshot persisted per boot"]
     REPO --> VS["VaultSession<br/>close viewers, wipe, clear cache"]
-    REPO --> VR["VaultRepository<br/>decrypts only while INSIDE"]
+    REPO --> VR["VaultRepository<br/>decrypts only while INSIDE<br/>and authenticated"]
+    AUTH["AuthSession<br/>fingerprint / face / PIN<br/>5-minute session"] --> VR
     REPO --> LOG["EventLogRepository"]
     REPO --> AN["VaultStatusAnnouncer<br/>notifications"]
     REPO --> GE["GraceExpiryScheduler<br/>WorkManager"]
     REPO --> FC["FocusController<br/>FocusPolicy"]
-    VR --> TINK["Tink AES-256-GCM<br/>keys wrapped by Android Keystore"]
+    VR --> TINK["Tink AES-256-GCM<br/>keys wrapped by an authentication-bound<br/>Android Keystore key"]
 ```
 
 - **One source of truth.** Every location signal becomes a `SecurityEvent`. A pure reducer
@@ -80,10 +82,46 @@ file on disk.
 | File contents | Tink `StreamingAead`, AES-256-GCM-HKDF with 1 MB segments: large videos stream, and video can seek without decrypting everything before it |
 | File names | Tink `Aead`, AES-256-GCM. A name like "Q3_layoffs.pdf" is sensitive too |
 | Binding | Each file's random ID is the *associated data*, so swapping two ciphertext files is detected |
-| Keys | Tink keysets generated on the phone and wrapped by a non-exportable AES key in the **Android Keystore** (hardware-backed where available). No hardcoded keys |
-| Fail closed | If the Keystore is unavailable, SafeComp refuses to store keys rather than keep them unprotected |
+| Keys | Tink keysets generated on the phone and wrapped by a non-exportable AES key in the **Android Keystore** (hardware-backed where available). Since Phase 7 that key **requires user authentication**: see below. No hardcoded keys |
+| Keys in memory | The unwrapped keysets exist only during an unlock session, and are dropped on background, screen-off, leaving the office, or after 5 minutes |
+| Fail closed | If the Keystore can't use the key (not authenticated, or destroyed), nothing decrypts |
 | Storage | `noBackupFilesDir/vault/<id>.bin`: app-private and excluded from every backup. Writes go to a temp file and are atomically renamed |
 | Reset | Deletes every file and row, then destroys the keys (crypto-shredding): leftovers can't be decrypted |
+
+### 2a. Who you are: fingerprint, face or PIN (Phase 7)
+
+Location answers "where are you?". Phase 7 adds "who are you?": even inside the office, the vault
+opens only after the owner confirms it's them with Android's own prompt. SafeComp has **no
+password of its own** and never sees the PIN or the fingerprint; Android checks them.
+
+| Rule | How it's enforced |
+|---|---|
+| The key that wraps the vault keys works only within **5 minutes** of a strong fingerprint/face or the phone's PIN, pattern or password | **Hardware** (Android Keystore, `setUserAuthenticationParameters`) |
+| SafeComp asks again when it goes to the background, the screen turns off, or the phone leaves the office | **App** (`AuthSession` ends the session and drops the keys from memory) |
+| No screen lock set: the vault stays locked, and onboarding explains why | Hardware (the key can't exist without one) and app |
+| The screen lock is removed: Android **destroys** the key, so the files become unreadable and must be re-imported from the company source | **Hardware** |
+| A fingerprint is added: the next unlock must use the **PIN**, then the new fingerprint set is trusted. Files are kept | App, detected with a fingerprint-only "check key" that Android destroys on enrolment |
+| Changing any setting (office, timings, Focus Mode work apps, and later the schedule and zones) and Reset need the same authentication | App (screens prompt; the view models refuse without a fresh session) |
+
+**Design decisions to defend:**
+- **Why a 5-minute window and not a prompt for every file?** Android's per-use keys can't accept
+  the PIN on Android 8–10 and can't be shared across several file reads. A short hardware window,
+  plus the app ending the session early, gives the same protection with usable flows.
+- **Why a new fingerprint doesn't wipe the files.** Android only destroys keys on fingerprint
+  changes when they are fingerprint-only and per-use, which would remove the PIN fallback. And
+  wiping would add no security: the threat is "someone who knows the PIN enrolls their own
+  finger", but that person can already unlock with the PIN. So SafeComp requires the PIN once.
+- **Why removing the screen lock does destroy the files.** Without a screen lock there is no
+  owner to check. This is safer, at the cost of re-importing from the company source.
+- **Honest note:** the hardware window counts any authentication to the phone, including
+  unlocking the lock screen. SafeComp's own prompt and the "PIN after a fingerprint change" rule
+  are enforced by the app.
+- **Reset without a screen lock** is allowed: the keys are already gone (or never existed), so
+  Reset only deletes unreadable data, and requiring an impossible authentication would leave the
+  owner stuck. With a screen lock, Reset needs authentication.
+- **Upgrading old installs:** the first unlock after the update reads the vault keys with the
+  old key, stores them under the new one, reads them back to check, and only then deletes the
+  old copies. Same keys, so every file stays readable; a crash midway just retries.
 
 ### 3. The location gate: INSIDE / OUTSIDE / UNKNOWN
 
@@ -235,7 +273,10 @@ switched on, plus a `BuildConfig.DEBUG` check in the repository as a second barr
 - **The screen can be photographed** with another camera, and on a rooted phone `FLAG_SECURE`
   can be bypassed. Screen protection is a mitigation, not a guarantee.
 - **Keys are device-only.** The office rule is enforced by the app on the phone. Someone who can
-  run code inside SafeComp's process on an unlocked phone could ask the Keystore to decrypt.
+  run code inside SafeComp's process on an unlocked phone, within 5 minutes of the owner
+  authenticating, could ask the Keystore to decrypt.
+- **A new fingerprint doesn't destroy the keys** (only a PIN is required once), and the
+  5-minute hardware window also counts the lock-screen unlock. See "Who you are" above.
 - **Memory wiping is best-effort.** Buffers SafeComp owns are zeroed, but the JVM's garbage
   collector may already have copied data.
 - **Background geofence events can be late.** Android batches them to save battery, so a "Vault
@@ -257,8 +298,6 @@ switched on, plus a `BuildConfig.DEBUG` check in the repository as a second barr
   Focus Mode is on).
 - **Controlled sharing** between employees: re-encrypting a file for a colleague's key without
   ever writing plaintext.
-- **Biometric unlock (Phase 7, planned):** require a fingerprint or the device credential before
-  the vault opens, with a Keystore key that needs user authentication.
 - **Enterprise Focus Mode:** the enrolled version described above.
 
 ## Building
@@ -286,5 +325,5 @@ is rejected.
 - [x] Phase 4: boundary behaviour (grace period, auto-close, notifications)
 - [x] Phase 5: local event log
 - [x] Phase 6: demo mode (debug builds only)
-- [ ] Phase 7: biometric / device-credential unlock (planned)
+- [x] Phase 7: fingerprint / face / PIN unlock and protected settings
 - [x] Phase 8: Focus Mode (opt-in app restriction tied to the geofence)

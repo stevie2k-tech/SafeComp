@@ -39,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.safecomp.focus.FocusMode
+import com.safecomp.ui.auth.rememberAuthGate
 import com.safecomp.ui.components.GlassCard
 import com.safecomp.ui.components.IconBadge
 import com.safecomp.ui.components.ScTopBar
@@ -51,6 +52,8 @@ import com.safecomp.ui.theme.Sc
 
 @Composable
 fun FocusSettingsScreen(viewModel: FocusSettingsViewModel, onBack: () -> Unit) {
+    // Every change here needs the owner's fingerprint/PIN (one prompt covers 5 minutes).
+    val authGate = rememberAuthGate(viewModel.authSession)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val status = state.status
 
@@ -67,8 +70,8 @@ fun FocusSettingsScreen(viewModel: FocusSettingsViewModel, onBack: () -> Unit) {
                     Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    AutoStartCard(status.autoStart, viewModel::setAutoStart)
-                    ModeCard(status.mode, state.setupCommand, viewModel::removeTestOwner)
+                    AutoStartCard(status.autoStart) { on -> authGate.requireAuth("Change Focus Mode") { viewModel.setAutoStart(on) } }
+                    ModeCard(status.mode, state.setupCommand) { authGate.requireAuth("Remove the test device owner") { viewModel.removeTestOwner() } }
                     Spacer(Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         SectionLabel("Work apps", Modifier.weight(1f))
@@ -107,7 +110,7 @@ fun FocusSettingsScreen(viewModel: FocusSettingsViewModel, onBack: () -> Unit) {
                         icon = { AppIcon(row.app) },
                         checked = row.selected,
                         enabled = true,
-                        onChange = { viewModel.setWorkApp(row.app.packageName, it) },
+                        onChange = { on -> authGate.requireAuth("Change your work apps") { viewModel.setWorkApp(row.app.packageName, on) } },
                     )
                 }
             }

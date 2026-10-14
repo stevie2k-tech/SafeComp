@@ -2,6 +2,7 @@ package com.safecomp.ui.permissions
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.admin.DevicePolicyManager
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.ContextWrapper
@@ -37,6 +38,23 @@ fun Context.requestBatteryUnrestricted() {
         Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.fromParts("package", packageName, null)),
         Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)),
+    )
+    for (intent in attempts) {
+        try {
+            startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            return
+        } catch (e: ActivityNotFoundException) {
+            // Try the next one.
+        }
+    }
+}
+
+/** Opens the screen-lock picker (PIN, pattern, password), or the security settings page. */
+fun Context.openScreenLockSettings() {
+    val attempts = listOf(
+        Intent(DevicePolicyManager.ACTION_SET_NEW_PASSWORD),
+        Intent(Settings.ACTION_SECURITY_SETTINGS),
+        Intent(Settings.ACTION_SETTINGS),
     )
     for (intent in attempts) {
         try {

@@ -44,7 +44,19 @@ class AppPreferences(context: Context) {
             putLong(KEY_VISIT_DAY, value.epochDay)
         }
 
+    /** The phone's fingerprints changed: the next unlock must use the PIN (Phase 7). */
+    var authPinRequired: Boolean
+        get() = prefs.getBoolean(KEY_AUTH_PIN_REQUIRED, false)
+        set(value) = prefs.edit { putBoolean(KEY_AUTH_PIN_REQUIRED, value) }
+
+    /** "Keys destroyed" was already written to the event log (log it once, not on every check). */
+    var authKeysDestroyedLogged: Boolean
+        get() = prefs.getBoolean(KEY_AUTH_KEYS_DESTROYED_LOGGED, false)
+        set(value) = prefs.edit { putBoolean(KEY_AUTH_KEYS_DESTROYED_LOGGED, value) }
+
     private companion object {
+        const val KEY_AUTH_PIN_REQUIRED = "auth_pin_required"
+        const val KEY_AUTH_KEYS_DESTROYED_LOGGED = "auth_keys_destroyed_logged"
         const val KEY_ONBOARDING_COMPLETED = "onboarding_completed"
         const val KEY_FOCUS_AUTO_START = "focus_auto_start"
         const val KEY_VISIT_STOPPED = "focus_visit_stopped"

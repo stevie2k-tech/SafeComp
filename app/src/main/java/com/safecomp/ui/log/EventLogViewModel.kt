@@ -4,8 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.safecomp.AppContainer
 import com.safecomp.data.EventLogEntry
+import com.safecomp.data.AuthChange
 import com.safecomp.data.EventType
 import com.safecomp.data.FocusChange
+import com.safecomp.security.AuthStatus
 import com.safecomp.security.SecurityState
 import com.safecomp.ui.components.description
 import com.safecomp.vault.VaultLockedException
@@ -20,9 +22,9 @@ import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-enum class LogFilter(val label: String) { ALL("All"), STATE("State"), FILES("Files"), DENIED("Blocked"), FOCUS("Focus") }
+enum class LogFilter(val label: String) { ALL("All"), STATE("State"), FILES("Files"), DENIED("Blocked"), FOCUS("Focus"), AUTH("Unlocks") }
 
-enum class LogRowKind { UNLOCKED, LOCKED, OPEN_ALLOWED, OPEN_DENIED, FOCUS }
+enum class LogRowKind { UNLOCKED, LOCKED, OPEN_ALLOWED, OPEN_DENIED, FOCUS, AUTH }
 
 data class LogRow(
     val id: Long,
@@ -45,7 +47,11 @@ class EventLogViewModel(private val container: AppContainer) : ViewModel() {
 
     private val filter = MutableStateFlow(LogFilter.ALL)
 
-    private val unlocked = container.securityState.snapshot.map { it.isUnlocked }.distinctUntilChanged()
+    /** Names (and Clear) need both factors: inside the office and a fresh fingerprint/PIN session. */
+    private val unlocked = combine(
+        container.securityState.snapshot.map { it.isUnlocked },
+        container.authSession.state.map { it.status == AuthStatus.AUTHENTICATED },
+    ) { inside, authenticated -> inside && authenticated }.distinctUntilChanged()
 
     val uiState: StateFlow<EventLogUiState> = combine(
         container.eventLog.entries,
@@ -56,19 +62,20 @@ class EventLogViewModel(private val container: AppContainer) : ViewModel() {
         .mapLatest { input ->
             // File names only while INSIDE. Outside, the log shows that something happened,
             // but not which file it was.
+            // Since Phase 7 this also needs a fresh fingerprint/PIN session: null = names locked.
             val names = if (input.unlocked) {
                 try {
                     container.vaultRepository.decryptNames(input.files)
                 } catch (e: VaultLockedException) {
-                    emptyMap()
+                    null
                 }
             } else {
-                emptyMap()
+                null
             }
             EventLogUiState(
                 rows = input.entries
                     .filter { it.matches(input.filter) }
-                    .map { it.toRow(names, input.unlocked) },
+                    .map { it.toRow(names) },
                 filter = input.filter,
                 unlocked = input.unlocked,
                 loading = false,
@@ -104,9 +111,10 @@ class EventLogViewModel(private val container: AppContainer) : ViewModel() {
         LogFilter.FILES -> type == EventType.FILE_OPEN
         LogFilter.DENIED -> type == EventType.FILE_OPEN && allowed == false
         LogFilter.FOCUS -> type == EventType.FOCUS
+        LogFilter.AUTH -> type == EventType.AUTH
     }
 
-    private fun EventLogEntry.toRow(names: Map<String, String>, unlocked: Boolean): LogRow {
+    private fun EventLogEntry.toRow(names: Map<String, String>?): LogRow {
         val why = (if (simulated) "[Demo] " else "") + reason?.description().orEmpty()
         return when (type) {
             EventType.STATE_CHANGE -> LogRow(
@@ -138,9 +146,23 @@ class EventLogViewModel(private val container: AppContainer) : ViewModel() {
                 },
                 detail = "State: ${state.name}. $why",
             )
+            // Fingerprint/PIN events: what happened, never how or where.
+            EventType.AUTH -> LogRow(
+                id = id,
+                timestamp = timestamp,
+                kind = LogRowKind.AUTH,
+                title = when (authChange) {
+                    AuthChange.AUTHENTICATED -> "Owner confirmed (fingerprint, face or PIN)"
+                    AuthChange.PIN_REQUIRED -> "Fingerprints changed: PIN required once"
+                    AuthChange.KEYS_DESTROYED -> "Vault keys destroyed (screen lock removed)"
+                    AuthChange.KEYS_UPGRADED -> "Vault keys moved under fingerprint/PIN protection"
+                    null -> "Authentication"
+                },
+                detail = "State: ${state.name}. $why",
+            )
             EventType.FILE_OPEN -> {
                 val name = when {
-                    !unlocked -> "a locked file"
+                    names == null -> "a locked file"
                     else -> names[fileId]?.let { "\"$it\"" } ?: "a deleted file"
                 }
                 val ok = allowed == true

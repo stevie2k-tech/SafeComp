@@ -3,6 +3,7 @@ package com.safecomp
 import android.content.Context
 import android.os.SystemClock
 import com.safecomp.crypto.KeyManager
+import com.safecomp.crypto.VaultKeystore
 import com.safecomp.data.AppPreferences
 import com.safecomp.data.GeofenceConfigRepository
 import com.safecomp.data.SafeCompDatabase
@@ -17,6 +18,7 @@ import com.safecomp.location.GeofenceManager
 import com.safecomp.location.LocationChecker
 import com.safecomp.notify.Notifier
 import com.safecomp.notify.VaultStatusAnnouncer
+import com.safecomp.security.AuthSession
 import com.safecomp.security.SecuritySnapshotStore
 import com.safecomp.security.SecurityStateRepository
 import com.safecomp.ui.focus.InstalledApps
@@ -74,17 +76,33 @@ class AppContainer(context: Context) {
 
     val eventLog = EventLogRepository(database.eventLogDao(), isDemoActive)
 
-    private val keyManager = KeyManager(appContext)
+    val vaultSession = VaultSession(appContext, securityState, geofenceConfigRepository, clock)
+
+    private val vaultKeystore = VaultKeystore(appContext)
+    private val keyManager = KeyManager(appContext, vaultKeystore)
+
+    /** "Who you are" (Phase 7): fingerprint/face/PIN session. Location is "where you are". */
+    val authSession = AuthSession(
+        context = appContext,
+        keystore = vaultKeystore,
+        keyManager = keyManager,
+        preferences = preferences,
+        vaultSession = vaultSession,
+        eventLog = eventLog,
+        securityState = securityState,
+        clock = clock,
+        scope = appScope,
+    )
+
     val vaultRepository = VaultRepository(
         context = appContext,
         dao = database.vaultFileDao(),
         keyManager = keyManager,
+        authSession = authSession,
         securityState = securityState,
         eventLog = eventLog,
         scope = appScope,
     )
-
-    val vaultSession = VaultSession(appContext, securityState, geofenceConfigRepository, clock)
     private val notifier = Notifier(appContext)
 
     /** Apps with a home-screen icon, for the Focus Mode work-app picker. */
@@ -111,6 +129,7 @@ class AppContainer(context: Context) {
         securityState.addListener(VaultStatusAnnouncer(notifier, snapshotStore, isDemoActive))
         securityState.addListener(GraceExpiryScheduler(appContext, geofenceConfigRepository, clock))
         securityState.addListener(focusController)
+        securityState.addListener(authSession)
         appScope.launch {
             vaultRepository.cleanUpOrphans()
             vaultSession.clearCache()

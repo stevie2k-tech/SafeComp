@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BatteryChargingFull
 import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Shield
@@ -194,6 +195,11 @@ fun OnboardingScreen(viewModel: PermissionsViewModel, onFinished: () -> Unit) {
                     },
                     Modifier.fillMaxWidth(),
                 )
+                step == PermissionStep.SCREEN_LOCK -> PrimaryButton(
+                    "Set screen lock",
+                    { context.openScreenLockSettings() },
+                    Modifier.fillMaxWidth(),
+                )
                 step == PermissionStep.BATTERY -> PrimaryButton(
                     "Allow background running",
                     { context.requestBatteryUnrestricted() },
@@ -259,6 +265,15 @@ private fun stepContent(step: PermissionStep, status: PermissionStatus): StepCon
         why = "So SafeComp can tell you when the vault locks as you leave the office and unlocks " +
             "when you return, and when Focus Mode starts or ends. It sends no other notifications.",
         hint = null,
+    )
+    PermissionStep.SCREEN_LOCK -> StepContent(
+        icon = Icons.Outlined.Lock,
+        title = "Screen lock",
+        why = "Even inside the office, SafeComp checks it's really you before opening the vault, " +
+            "using the phone's own fingerprint, face or PIN. SafeComp never sees or stores them. " +
+            "That needs a screen lock (PIN, pattern or password). Without one, the vault stays locked.",
+        hint = "Removing the screen lock later destroys the vault keys on purpose: the files would " +
+            "then have to be re-imported.",
     )
     PermissionStep.BATTERY -> StepContent(
         icon = Icons.Outlined.BatteryChargingFull,

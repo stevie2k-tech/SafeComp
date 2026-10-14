@@ -1,6 +1,7 @@
 package com.safecomp.log
 
 import com.safecomp.data.EventLogEntry
+import com.safecomp.data.AuthChange
 import com.safecomp.data.EventType
 import com.safecomp.data.FocusChange
 import com.safecomp.security.SecuritySnapshot
@@ -43,6 +44,16 @@ object EventLogPolicy {
             state = snapshot.state,
             reason = snapshot.reason,
             focusChange = change,
+        )
+
+    /** Fingerprint/PIN events. Only what happened, never how or where. */
+    fun authEntry(change: AuthChange, snapshot: SecuritySnapshot, wallClockMillis: Long) =
+        EventLogEntry(
+            timestamp = wallClockMillis,
+            type = EventType.AUTH,
+            state = snapshot.state,
+            reason = snapshot.reason,
+            authChange = change,
         )
 
     fun retentionCutoff(wallClockMillis: Long): Long =

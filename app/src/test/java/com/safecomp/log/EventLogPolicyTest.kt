@@ -63,4 +63,12 @@ class EventLogPolicyTest {
                 assert(banned !in words) { "EventLogEntry must not store '$banned'" }
             }
     }
+
+    @Test fun `authentication entries record what happened, nothing else`() {
+        val entry = EventLogPolicy.authEntry(com.safecomp.data.AuthChange.PIN_REQUIRED, inside, wallClockMillis = 7)
+        assertEquals(EventType.AUTH, entry.type)
+        assertEquals(com.safecomp.data.AuthChange.PIN_REQUIRED, entry.authChange)
+        assertNull(entry.fileId)
+        assertNull(entry.focusChange)
+    }
 }

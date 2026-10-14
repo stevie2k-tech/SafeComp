@@ -68,6 +68,10 @@ import com.safecomp.ui.components.SectionLabel
 import com.safecomp.ui.components.SecureDialog
 import com.safecomp.ui.components.SecureDialogProperties
 import com.safecomp.ui.locked.LockedHedgehogScreen
+import com.safecomp.security.AuthStatus
+import com.safecomp.ui.auth.AuthGateCard
+import com.safecomp.ui.auth.rememberAuthGate
+import com.safecomp.ui.permissions.openScreenLockSettings
 import com.safecomp.ui.theme.Sc
 import com.safecomp.vault.ImportProgress
 import kotlinx.coroutines.flow.Flow
@@ -88,6 +92,8 @@ fun VaultScreen(
     val pending by viewModel.pendingImport.collectAsStateWithLifecycle()
     val progress by viewModel.importProgress.collectAsStateWithLifecycle()
     var confirmDelete by remember { mutableStateOf<VaultItem?>(null) }
+    val authGate = rememberAuthGate(viewModel.authSessionForUi)
+    val context = LocalContext.current
 
     // The system file picker (Storage Access Framework). It grants access only to the files
     // the user picks, so SafeComp needs no broad storage permission.
@@ -98,6 +104,7 @@ fun VaultScreen(
     val glow = when (val s = state) {
         is VaultUiState.Unlocked -> Sc.Inside
         is VaultUiState.Locked -> if (s.reason == StateReason.OUTSIDE_FIX || s.reason == StateReason.OUTSIDE_GEOFENCE) Sc.Outside else Sc.Unknown
+        is VaultUiState.NeedsAuth -> Sc.Accent
         VaultUiState.Loading -> null
     }
 
@@ -109,6 +116,7 @@ fun VaultScreen(
                 subtitle = when (val s = state) {
                     is VaultUiState.Unlocked -> "${s.items.size} FILE${if (s.items.size == 1) "" else "S"} · AES-256-GCM"
                     is VaultUiState.Locked -> "LOCKED"
+                    is VaultUiState.NeedsAuth -> "IN THE OFFICE · CONFIRM IT'S YOU"
                     VaultUiState.Loading -> " "
                 },
                 onBack = onBack,
@@ -120,6 +128,19 @@ fun VaultScreen(
                     CircularProgressIndicator(color = Sc.Accent)
                 }
                 is VaultUiState.Locked -> LockedHedgehogScreen(s.reason)
+                is VaultUiState.NeedsAuth -> AuthGateCard(
+                    auth = s.auth,
+                    onUnlock = { authGate.prompt(s.auth.pinOnly, "Open the vault") },
+                    onSetScreenLock = { context.openScreenLockSettings() },
+                    onReset = {
+                        // With a screen lock, Reset needs authentication too.
+                        if (s.auth.status == AuthStatus.NO_SCREEN_LOCK) {
+                            viewModel.resetVault()
+                        } else {
+                            authGate.requireAuth("Reset the vault") { viewModel.resetVault() }
+                        }
+                    },
+                )
                 is VaultUiState.Unlocked -> Box(Modifier.fillMaxSize()) {
                     LazyColumn(
                         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),

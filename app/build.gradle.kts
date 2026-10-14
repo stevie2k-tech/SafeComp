@@ -49,6 +49,11 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.process)
 
+    // Phase 7: fingerprint / screen-lock prompt. Stable 1.1.0 (newer versions are alpha);
+    // fragment-ktx pinned so BiometricPrompt runs on a current FragmentActivity.
+    implementation(libs.androidx.biometric)
+    implementation(libs.androidx.fragment.ktx)
+
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.work.runtime.ktx)

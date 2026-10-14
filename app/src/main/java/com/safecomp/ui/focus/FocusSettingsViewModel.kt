@@ -59,15 +59,21 @@ class FocusSettingsViewModel(private val container: AppContainer) : ViewModel() 
         query.value = value
     }
 
+    /** For the screen's fingerprint/PIN prompt: every change below needs it (Phase 7). */
+    val authSession get() = container.authSession
+
     fun setAutoStart(enabled: Boolean) {
+        if (!authSession.maySaveSettings()) return
         container.appScope.launch { focus.setAutoStart(enabled) }
     }
 
     fun setWorkApp(packageName: String, selected: Boolean) {
+        if (!authSession.maySaveSettings()) return
         container.appScope.launch { focus.setWorkApp(packageName, selected) }
     }
 
     fun removeTestOwner() {
+        if (!authSession.maySaveSettings()) return
         container.appScope.launch { focus.removeTestOwner() }
     }
 }

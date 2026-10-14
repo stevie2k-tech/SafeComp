@@ -18,5 +18,7 @@ class SafeCompApp : Application() {
         ProcessLifecycleOwner.get().lifecycle.addObserver(container.vaultSession)
         // Focus Mode may only start while a SafeComp screen is visible.
         ProcessLifecycleOwner.get().lifecycle.addObserver(container.focusController)
+        // Going to the background ends the fingerprint/PIN session (Phase 7).
+        ProcessLifecycleOwner.get().lifecycle.addObserver(container.authSession)
     }
 }

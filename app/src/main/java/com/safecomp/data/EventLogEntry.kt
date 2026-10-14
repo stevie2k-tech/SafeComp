@@ -7,7 +7,10 @@ import androidx.room.PrimaryKey
 import com.safecomp.security.SecurityState
 import com.safecomp.security.StateReason
 
-enum class EventType { STATE_CHANGE, FILE_OPEN, FOCUS }
+enum class EventType { STATE_CHANGE, FILE_OPEN, FOCUS, AUTH }
+
+/** AUTH entries only: who-you-are events. Never how, where, or which finger. */
+enum class AuthChange { AUTHENTICATED, PIN_REQUIRED, KEYS_DESTROYED, KEYS_UPGRADED }
 
 /** FOCUS entries only: what happened to Focus Mode. Never which apps were used. */
 enum class FocusChange { STARTED, STOPPED_BY_USER, ENDED_LEFT_OFFICE, TURNED_OFF, DECLINED, NOT_STARTED }
@@ -37,6 +40,8 @@ data class EventLogEntry(
     val allowed: Boolean? = null,
     /** FOCUS only. */
     val focusChange: FocusChange? = null,
+    /** AUTH only. */
+    val authChange: AuthChange? = null,
     /** Recorded while debug demo mode was on, so demo events are never mistaken for real ones. */
     @ColumnInfo(defaultValue = "0") val simulated: Boolean = false,
 ) {

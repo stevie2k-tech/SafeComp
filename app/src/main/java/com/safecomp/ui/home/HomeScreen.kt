@@ -256,6 +256,7 @@ private fun PermissionWarnings(status: PermissionStatus, onReviewPermissions: ()
         if (!status.preciseLocation) add("Precise location is off, so the vault stays locked.")
         if (status.preciseLocation && !status.backgroundLocation) add("Background location is off: lock alerts may be late.")
         if (!status.notifications) add("Notifications are off: you won't be told when the vault locks.")
+        if (!status.screenLock) add("No screen lock: the vault stays locked until you set a PIN, pattern or password.")
         if (status.backgroundLocation && !status.batteryUnrestricted) {
             add("Battery saving can delay lock alerts while SafeComp is closed.")
         }

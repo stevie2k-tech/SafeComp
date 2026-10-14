@@ -38,6 +38,11 @@ class VaultSession(
     /** Emits when every open file viewer must close. */
     val closeViewers: SharedFlow<Unit> = _closeViewers.asSharedFlow()
 
+    /** The unlock session ended (Phase 7): close every viewer, like a lock. */
+    fun closeAllViewers() {
+        _closeViewers.tryEmit(Unit)
+    }
+
     override suspend fun onStateChanged(old: SecuritySnapshot, new: SecuritySnapshot) {
         if (old.isUnlocked && !new.isUnlocked) {
             _closeViewers.tryEmit(Unit)

@@ -101,7 +101,15 @@ class GeofenceSetupViewModel(private val container: AppContainer) : ViewModel() 
         }
     }
 
+    /** For the screen's fingerprint/PIN prompt (Phase 7). */
+    val authSession get() = container.authSession
+
     fun save() {
+        // Defence in depth: the screen asks for authentication first; refuse if it didn't.
+        if (!container.authSession.maySaveSettings()) {
+            _uiState.update { it.copy(error = "Confirm it's you (fingerprint or PIN) to change the office.") }
+            return
+        }
         val state = _uiState.value
         val lat = state.latitude.parseCoordinate()
         val lng = state.longitude.parseCoordinate()
@@ -142,12 +150,14 @@ class GeofenceSetupViewModel(private val container: AppContainer) : ViewModel() 
 
     /** Escape hatch when the office moves or the phone is handed over: forget everything. */
     fun reset() {
+        if (!container.authSession.mayReset()) return
         container.appScope.launch {
             container.geofenceManager.unregister()
             container.geofenceConfigRepository.clear()
             container.vaultRepository.wipeAll()
             container.eventLog.clear()
             container.focusController.reset()
+            container.authSession.afterReset()
             container.securityState.dispatch(SecurityEvent.ConfigChanged)
             _uiState.update { it.copy(done = true) }
         }

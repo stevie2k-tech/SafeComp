@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.CenterFocusStrong
+import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LockOpen
@@ -183,6 +184,7 @@ private fun TimelineRow(row: LogRow, isLastOfDay: Boolean) {
         LogRowKind.OPEN_ALLOWED -> Icons.Outlined.TaskAlt to Sc.Sky
         LogRowKind.OPEN_DENIED -> Icons.Outlined.Block to Sc.Outside
         LogRowKind.FOCUS -> Icons.Outlined.CenterFocusStrong to Sc.Violet
+        LogRowKind.AUTH -> Icons.Outlined.Fingerprint to Sc.Accent
     }
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
         // Timeline rail: glowing dot + line down to the next event.

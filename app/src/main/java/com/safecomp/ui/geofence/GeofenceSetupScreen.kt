@@ -45,6 +45,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.safecomp.data.GeofenceConfig
+import com.safecomp.ui.auth.rememberAuthGate
 import com.safecomp.ui.components.GlassCard
 import com.safecomp.ui.components.IconBadge
 import com.safecomp.ui.components.PrimaryButton
@@ -59,6 +60,7 @@ import kotlin.math.roundToInt
 
 @Composable
 fun GeofenceSetupScreen(viewModel: GeofenceSetupViewModel, onDone: () -> Unit) {
+    val authGate = rememberAuthGate(viewModel.authSession)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var confirmReset by rememberSaveable { mutableStateOf(false) }
 
@@ -154,7 +156,7 @@ fun GeofenceSetupScreen(viewModel: GeofenceSetupViewModel, onDone: () -> Unit) {
 
                 PrimaryButton(
                     text = if (state.saving) "Saving…" else "Save office",
-                    onClick = viewModel::save,
+                    onClick = { authGate.requireAuth("Change the office settings") { viewModel.save() } },
                     icon = Icons.Outlined.Save,
                     enabled = state.canEdit && !state.saving,
                     modifier = Modifier.fillMaxWidth(),
@@ -192,7 +194,9 @@ fun GeofenceSetupScreen(viewModel: GeofenceSetupViewModel, onDone: () -> Unit) {
             confirmLabel = "Reset",
             onConfirm = {
                 confirmReset = false
-                viewModel.reset()
+                // With a screen lock, Reset needs authentication; without one the data is
+                // already unreadable (see AuthPolicy.mayReset).
+                if (viewModel.authSession.mayReset()) viewModel.reset() else authGate.requireAuth("Reset SafeComp") { viewModel.reset() }
             },
             dismissLabel = "Cancel",
             onDismiss = { confirmReset = false },
