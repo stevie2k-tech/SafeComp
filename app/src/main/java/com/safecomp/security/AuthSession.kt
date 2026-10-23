@@ -100,7 +100,14 @@ class AuthSession(
 
     /** Re-reads the phone's state: screen lock, destroyed key, changed fingerprints. */
     suspend fun refresh() = withContext(Dispatchers.IO) {
-        if (keystore.canaryState() == CanaryState.INVALIDATED && !preferences.authPinRequired) {
+        val canary = keystore.canaryState()
+        val fingerprintsChanged = AuthPolicy.fingerprintsChanged(
+            checkKeyInvalidated = canary == CanaryState.INVALIDATED,
+            checkKeyAbsent = canary == CanaryState.ABSENT,
+            strongBiometricEnrolled = keystore.hasStrongBiometric(),
+            hasKeys = keyManager.hasKeys(),
+        )
+        if (fingerprintsChanged && !preferences.authPinRequired) {
             preferences.authPinRequired = true
             eventLog.authChange(AuthChange.PIN_REQUIRED, securityState.snapshot.value)
             end()
@@ -132,19 +139,32 @@ class AuthSession(
      * ("who"). False if either is missing; the screen then shows the hedgehog or the prompt.
      */
     suspend fun unlockVault(): Boolean = withContext(Dispatchers.IO) {
-        if (keyManager.isUnlocked) return@withContext true
+        // Both factors are checked every time, even when the keys are already in memory:
+        // "keys loaded" alone must never count as permission.
         if (!securityState.isUnlockedNow()) return@withContext false
+        if (keyManager.isUnlocked) {
+            if (AuthPolicy.maySaveSettings(quickFacts())) return@withContext true
+            keyManager.lock() // Loaded, but the session is over: drop them now.
+            return@withContext false
+        }
+        val session = authenticatedAt.value
         if (AuthPolicy.status(facts()) != AuthStatus.AUTHENTICATED) return@withContext false
         try {
             if (keyManager.unlock()) eventLog.authChange(AuthChange.KEYS_UPGRADED, securityState.snapshot.value)
-            true
         } catch (e: AuthenticationRequiredException) {
             end() // The hardware's window disagrees with ours: ask again.
-            false
+            return@withContext false
         } catch (e: KeysDestroyedException) {
             refresh()
-            false
+            return@withContext false
         }
+        // The session may have ended (screen off, background, left the office) while the keys
+        // were loading. end() then ran before they were in memory and couldn't drop them.
+        if (authenticatedAt.value != session || !securityState.snapshot.value.isUnlocked) {
+            keyManager.lock()
+            return@withContext false
+        }
+        true
     }
 
     /** Ends the session: keys out of memory, open files closed. */
@@ -170,9 +190,12 @@ class AuthSession(
         scope.launch { refresh() }
     }
 
-    /** Left the office (or UNKNOWN): the keys leave memory at once. The vault is locked anyway. */
+    /**
+     * Left the office (or UNKNOWN): the session ends and the keys leave memory at once, so
+     * coming back in needs a new fingerprint/PIN (as the README promises).
+     */
     override suspend fun onStateChanged(old: SecuritySnapshot, new: SecuritySnapshot) {
-        if (old.isUnlocked && !new.isUnlocked) keyManager.lock()
+        if (old.isUnlocked && !new.isUnlocked) end()
     }
 
     private fun publish(facts: AuthFacts) {

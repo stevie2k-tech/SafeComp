@@ -129,7 +129,16 @@ All paths are under `app/src/main/java/com/safecomp/`.
 
 ## 6. Specific next steps
 
-**A. Apply the quick security-review fixes.** These were offered and are waiting for the owner's OK:
+**A0. 2026-10-23 cloud review session (branch `fix/review-fixes`, NOT yet merged to `main`).**
+The cloud container had no Android SDK (dl.google.com blocked), so only the pure-Kotlin tests ran
+(AuthPolicyTest 15/15, SecurityStateMachineTest 28/28). **Before merging, run the full build command
+above (assembleDebug, testDebugUnitTest, lintDebug, assembleRelease).** The branch fixes M1, M2, L2 and L3 below, plus:
+- Import always failed: the file picker sends SafeComp to the background, which ends the session. Now "Encrypt" asks for fingerprint/PIN first.
+- `unlockVault()` returned true whenever keys were in memory, and a session ending mid-unlock could leave keys loaded. It now re-checks both factors every time.
+- Leaving INSIDE only dropped the keys and didn't end the session (the README said it did). It now ends it.
+- A first fingerprint added to a phone that had none at setup was trusted without the PIN (checklist C4 would have failed on an emulator with no fingerprint). New `AuthPolicy.fingerprintsChanged` rule, with tests.
+
+**A. Apply the quick security-review fixes.** (Done on `fix/review-fixes`, see A0.) These were offered and are waiting for the owner's OK:
 1. **M1:** `vault/VaultRepository.kt:170` (`"Couldn't open $uri"`) and `:133` (`Log.w(TAG, "Import failed", e)`) leak file names into logcat. Use a generic message and log only the exception class.
 2. **M2:** `crypto/VaultKeystore.kt:108–109`. `canaryState()` maps any `GeneralSecurityException` to VALID, which fails open. Return INVALIDATED (or a new UNKNOWN that forces PIN-only) and add a test.
 3. **L2:** `ui/log/EventLogViewModel.kt:97`. `clear()` checks only location. Gate it with `authSession.maySaveSettings()` / `requireAuth`.

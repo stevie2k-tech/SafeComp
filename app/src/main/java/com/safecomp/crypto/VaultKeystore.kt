@@ -11,6 +11,7 @@ import androidx.biometric.BiometricManager
 import com.google.crypto.tink.Aead
 import java.security.GeneralSecurityException
 import java.security.KeyStore
+import java.security.ProviderException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -51,16 +52,22 @@ class VaultKeystore(private val context: Context) {
 
     // --- Key-encryption key ------------------------------------------------------------------
 
-    fun kekState(): KekState {
-        val key = secretKey(KEK_ALIAS) ?: return KekState.ABSENT
-        return try {
+    fun kekState(): KekState = try {
+        val key = secretKey(KEK_ALIAS)
+        if (key == null) {
+            KekState.ABSENT
+        } else {
             Cipher.getInstance(TRANSFORMATION).init(Cipher.ENCRYPT_MODE, key)
             KekState.USABLE
-        } catch (e: KeyPermanentlyInvalidatedException) {
-            KekState.DESTROYED
-        } catch (e: UserNotAuthenticatedException) {
-            KekState.NEEDS_AUTHENTICATION
         }
+    } catch (e: KeyPermanentlyInvalidatedException) {
+        KekState.DESTROYED
+    } catch (e: GeneralSecurityException) {
+        // UserNotAuthenticatedException, or any other Keystore failure: fail closed (ask
+        // again) rather than crash. The unlock itself reports a real problem.
+        KekState.NEEDS_AUTHENTICATION
+    } catch (e: ProviderException) {
+        KekState.NEEDS_AUTHENTICATION
     }
 
     /** The key-encryption key as a Tink AEAD, created on first use. Needs a screen lock. */
@@ -97,25 +104,34 @@ class VaultKeystore(private val context: Context) {
 
     // --- Fingerprint check key ----------------------------------------------------------------
 
-    fun canaryState(): CanaryState {
-        val key = secretKey(CANARY_ALIAS) ?: return CanaryState.ABSENT
-        return try {
+    /**
+     * Any failure other than "absent" counts as INVALIDATED (fail closed): if SafeComp can't
+     * prove the fingerprints are unchanged, the next unlock uses the PIN, which then replaces
+     * the check key.
+     */
+    fun canaryState(): CanaryState = try {
+        val key = secretKey(CANARY_ALIAS)
+        if (key == null) {
+            CanaryState.ABSENT
+        } else {
             // A per-use key can be initialised without authentication; a destroyed one can't.
             Cipher.getInstance(TRANSFORMATION).init(Cipher.ENCRYPT_MODE, key)
             CanaryState.VALID
-        } catch (e: KeyPermanentlyInvalidatedException) {
-            CanaryState.INVALIDATED
-        } catch (e: GeneralSecurityException) {
-            CanaryState.VALID
         }
+    } catch (e: GeneralSecurityException) {
+        CanaryState.INVALIDATED
+    } catch (e: ProviderException) {
+        CanaryState.INVALIDATED
     }
+
+    /** A strong (class 3) fingerprint or face is enrolled, so the check key can watch it. */
+    fun hasStrongBiometric(): Boolean = BiometricManager.from(context)
+        .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
 
     /** Replaces the check key with one tied to the fingerprints enrolled right now. */
     fun resetCanary() {
         deleteEntry(CANARY_ALIAS)
-        val hasStrongBiometric = BiometricManager.from(context)
-            .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
-        if (!hasStrongBiometric || !isDeviceSecure()) return // Nothing to watch.
+        if (!hasStrongBiometric() || !isDeviceSecure()) return // Nothing to watch.
         val spec = KeyGenParameterSpec.Builder(CANARY_ALIAS, KeyProperties.PURPOSE_ENCRYPT)
             .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)

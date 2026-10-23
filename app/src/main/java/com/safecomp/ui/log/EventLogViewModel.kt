@@ -88,15 +88,20 @@ class EventLogViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     /**
-     * Only while INSIDE. The log tells the employee what happened while they were away, e.g.
-     * blocked attempts to open files. Someone holding the phone outside the office
-     * shouldn't be able to erase that.
+     * Only while INSIDE and in a fresh fingerprint/PIN session. The log tells the employee
+     * what happened while they were away, e.g. blocked attempts to open files. Someone holding
+     * the phone, outside the office or without the owner's fingerprint/PIN, shouldn't be able
+     * to erase that. (The screen asks for authentication first; this refuses if it didn't.)
      */
     fun clear() {
+        if (!container.authSession.maySaveSettings()) return
         viewModelScope.launch {
             if (container.securityState.isUnlockedNow()) container.eventLog.clear()
         }
     }
+
+    /** For the screen's fingerprint/PIN prompt. */
+    val authSession get() = container.authSession
 
     private data class Input(
         val entries: List<EventLogEntry>,

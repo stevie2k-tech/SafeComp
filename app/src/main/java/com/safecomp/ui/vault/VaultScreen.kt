@@ -173,10 +173,15 @@ fun VaultScreen(
         }
     }
 
-    if (pending.isNotEmpty()) {
+    // Outside the office the picked files wait (encrypting needs the keys, so it would fail).
+    if (pending.isNotEmpty() && state !is VaultUiState.Locked) {
         ImportConfirmDialog(
             count = pending.size,
-            onConfirm = viewModel::confirmImport,
+            // Opening the system file picker sends SafeComp to the background, which ends the
+            // fingerprint/PIN session. So encrypting usually needs a new prompt first.
+            onConfirm = { deleteOriginals ->
+                authGate.requireAuth("Encrypt the picked files") { viewModel.confirmImport(deleteOriginals) }
+            },
             onCancel = viewModel::cancelImport,
         )
     }

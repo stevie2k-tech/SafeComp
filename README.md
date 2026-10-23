@@ -100,8 +100,9 @@ password of its own** and never sees the PIN or the fingerprint; Android checks 
 | SafeComp asks again when it goes to the background, the screen turns off, or the phone leaves the office | **App** (`AuthSession` ends the session and drops the keys from memory) |
 | No screen lock set: the vault stays locked, and onboarding explains why | Hardware (the key can't exist without one) and app |
 | The screen lock is removed: Android **destroys** the key, so the files become unreadable and must be re-imported from the company source | **Hardware** |
-| A fingerprint is added: the next unlock must use the **PIN**, then the new fingerprint set is trusted. Files are kept | App, detected with a fingerprint-only "check key" that Android destroys on enrolment |
-| Changing any setting (office, timings, Focus Mode work apps, and later the schedule and zones) and Reset need the same authentication | App (screens prompt; the view models refuse without a fresh session) |
+| A fingerprint is added: the next unlock must use the **PIN**, then the new fingerprint set is trusted. Files are kept. This also covers the *first* fingerprint added to a phone that had none when SafeComp was set up, and any case where the check key can't be read (fail closed) | App, detected with a fingerprint-only "check key" that Android destroys on enrolment |
+| Changing any setting (office, timings, Focus Mode work apps, and later the schedule and zones), clearing the event log, and Reset need the same authentication | App (screens prompt; the view models refuse without a fresh session) |
+| Keys already in memory never count as permission on their own: every vault access re-checks INSIDE and a fresh session | App (`AuthSession.unlockVault`) |
 
 **Design decisions to defend:**
 - **Why a 5-minute window and not a prompt for every file?** Android's per-use keys can't accept
@@ -116,6 +117,9 @@ password of its own** and never sees the PIN or the fingerprint; Android checks 
 - **Honest note:** the hardware window counts any authentication to the phone, including
   unlocking the lock screen. SafeComp's own prompt and the "PIN after a fingerprint change" rule
   are enforced by the app.
+- **Importing asks again.** The system file picker is another app, so opening it sends SafeComp
+  to the background, which ends the session. Encrypting the picked files therefore needs a new
+  fingerprint/PIN. That's the rule working as designed, not a bug.
 - **Reset without a screen lock** is allowed: the keys are already gone (or never existed), so
   Reset only deletes unreadable data, and requiring an impossible authentication would leave the
   owner stuck. With a screen lock, Reset needs authentication.

@@ -53,6 +53,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.safecomp.data.EventLogEntry
+import com.safecomp.ui.auth.rememberAuthGate
 import com.safecomp.ui.components.CircleIconButton
 import com.safecomp.ui.components.GlassCard
 import com.safecomp.ui.components.IconBadge
@@ -67,6 +68,7 @@ import java.util.Calendar
 fun EventLogScreen(viewModel: EventLogViewModel, onBack: () -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var confirmClear by remember { mutableStateOf(false) }
+    val authGate = rememberAuthGate(viewModel.authSession)
     val context = LocalContext.current
 
     ScreenBackground(glow = Sc.Violet) {
@@ -117,8 +119,8 @@ fun EventLogScreen(viewModel: EventLogViewModel, onBack: () -> Unit) {
             text = "All entries will be deleted from this phone.",
             confirmLabel = "Clear",
             onConfirm = {
-                viewModel.clear()
                 confirmClear = false
+                authGate.requireAuth("Clear the event log") { viewModel.clear() }
             },
             dismissLabel = "Cancel",
             onDismiss = { confirmClear = false },
