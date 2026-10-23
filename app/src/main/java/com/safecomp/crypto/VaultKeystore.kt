@@ -51,16 +51,22 @@ class VaultKeystore(private val context: Context) {
 
     // --- Key-encryption key ------------------------------------------------------------------
 
-    fun kekState(): KekState {
-        val key = secretKey(KEK_ALIAS) ?: return KekState.ABSENT
-        return try {
+    fun kekState(): KekState = try {
+        val key = secretKey(KEK_ALIAS)
+        if (key == null) {
+            KekState.ABSENT
+        } else {
             Cipher.getInstance(TRANSFORMATION).init(Cipher.ENCRYPT_MODE, key)
             KekState.USABLE
-        } catch (e: KeyPermanentlyInvalidatedException) {
-            KekState.DESTROYED
-        } catch (e: UserNotAuthenticatedException) {
-            KekState.NEEDS_AUTHENTICATION
         }
+    } catch (e: KeyPermanentlyInvalidatedException) {
+        KekState.DESTROYED
+    } catch (e: UserNotAuthenticatedException) {
+        KekState.NEEDS_AUTHENTICATION
+    } catch (e: GeneralSecurityException) {
+        // Any other Keystore error: don't crash, and don't claim the key is usable (fail closed).
+        // Asking for authentication again is the safe answer; unlock() re-checks for real.
+        KekState.NEEDS_AUTHENTICATION
     }
 
     /** The key-encryption key as a Tink AEAD, created on first use. Needs a screen lock. */
@@ -97,17 +103,20 @@ class VaultKeystore(private val context: Context) {
 
     // --- Fingerprint check key ----------------------------------------------------------------
 
-    fun canaryState(): CanaryState {
-        val key = secretKey(CANARY_ALIAS) ?: return CanaryState.ABSENT
-        return try {
+    fun canaryState(): CanaryState = try {
+        val key = secretKey(CANARY_ALIAS)
+        if (key == null) {
+            CanaryState.ABSENT
+        } else {
             // A per-use key can be initialised without authentication; a destroyed one can't.
             Cipher.getInstance(TRANSFORMATION).init(Cipher.ENCRYPT_MODE, key)
             CanaryState.VALID
-        } catch (e: KeyPermanentlyInvalidatedException) {
-            CanaryState.INVALIDATED
-        } catch (e: GeneralSecurityException) {
-            CanaryState.VALID
         }
+    } catch (e: GeneralSecurityException) {
+        // Destroyed (KeyPermanentlyInvalidatedException) or any other error: SafeComp can't
+        // prove the fingerprints are unchanged, so fail closed and ask for the PIN once.
+        // After the PIN, the check key is recreated (AuthSession.onAuthenticated).
+        CanaryState.INVALIDATED
     }
 
     /** Replaces the check key with one tied to the fingerprints enrolled right now. */

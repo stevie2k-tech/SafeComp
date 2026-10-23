@@ -1,6 +1,6 @@
 # SafeComp: handoff
 
-_Last updated: 2026-10-15. HEAD = `404d565` (Phase 7), same as `origin/main`. The working tree is clean apart from this file._
+_Last updated: 2026-10-23. The repo is now **public**: https://github.com/stevie2k-tech/SafeComp_
 
 ## 1. Goal
 
@@ -43,7 +43,7 @@ If anything conflicts with how the code currently works, stop and ask instead of
 | 11: Uzbek / Russian / English | Not started (comes last) |
 
 - Last run: 123 unit tests pass and lint is clean (Phase 7).
-- A security code review was delivered (findings in §6). None of its fixes have been applied yet.
+- A security code review was delivered. Fixes M1, M2, L2 and L3 have been applied (§6A); H1 still needs the owner's decision.
 
 **Environment:**
 - Real project: `~/AndroidStudioProjects/SafeComp`. The `~/Desktop/SafeComp` copy is **obsolete**, but the IDE sometimes opens files there.
@@ -129,13 +129,21 @@ All paths are under `app/src/main/java/com/safecomp/`.
 
 ## 6. Specific next steps
 
-**A. Apply the quick security-review fixes.** These were offered and are waiting for the owner's OK:
-1. **M1:** `vault/VaultRepository.kt:170` (`"Couldn't open $uri"`) and `:133` (`Log.w(TAG, "Import failed", e)`) leak file names into logcat. Use a generic message and log only the exception class.
-2. **M2:** `crypto/VaultKeystore.kt:108–109`. `canaryState()` maps any `GeneralSecurityException` to VALID, which fails open. Return INVALIDATED (or a new UNKNOWN that forces PIN-only) and add a test.
-3. **L2:** `ui/log/EventLogViewModel.kt:97`. `clear()` checks only location. Gate it with `authSession.maySaveSettings()` / `requireAuth`.
-4. **L3:** `crypto/VaultKeystore.kt:54–63`. `kekState()` lets unexpected exceptions through, which can crash the app. Catch `GeneralSecurityException` and treat it as NEEDS_AUTHENTICATION (fail closed).
+**A. Quick security-review fixes: DONE (2026-10-23).**
+- **M1:** the import error log and exception message no longer include the file URI or name.
+- **M2:** `canaryState()` now fails closed. Any Keystore error means INVALIDATED, so the PIN is required once.
+- **L2:** Clear log needs INSIDE and a fresh auth session.
+- **L3:** `kekState()` catches any Keystore error and treats it as NEEDS_AUTHENTICATION instead of crashing.
 
-Then build, test, lint, commit and push.
+The tests and lint pass. These are Android Keystore paths, so they have no unit tests; verify them on a device.
+
+**Remaining lower-severity items** (documented as limitations, not fixed):
+- L1: plaintext metadata (office coordinates, MIME types, sizes, the log).
+- L4: snapshot prefs can be forged on a rooted phone.
+- L5: legacy no-auth keys remain until the first unlock.
+- L6: some rules are enforced by the app only.
+- L7: no tapjacking filter (`filterTouchesWhenObscured`).
+- No StrongBox.
 
 **B. H1: release build.** The distributed APK is debuggable, and its demo mode can fake INSIDE.
 - **Needs the owner's decision:** where the release signing keystore lives. It must stay outside the repo, with the passwords in `~/.gradle/gradle.properties` or environment variables.
@@ -166,4 +174,4 @@ Then build, test, lint, commit and push.
 
 **Housekeeping:**
 - Don't commit `strix_runs/` (scanner output in the Desktop copy) without asking.
-- This `handoff.md` is untracked. Ask before committing it.
+- This repo is public: never commit signing keys, `local.properties` or anything else secret.
