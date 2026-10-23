@@ -129,8 +129,9 @@ class VaultRepository(
                         originalsKept = progress.originalsKept + if (keptOriginal) 1 else 0,
                     )
                 } catch (e: Exception) {
-                    // Log the error type only: never file names or contents.
-                    Log.w(TAG, "Import failed", e)
+                    // Log the error type only: never file names, URIs or contents. (A stack
+                    // trace would include the exception message, which can name the file.)
+                    Log.w(TAG, "Import failed: ${e.javaClass.simpleName}")
                     progress.copy(failed = progress.failed + 1)
                 }
                 _importProgress.value = progress
@@ -167,7 +168,7 @@ class VaultRepository(
                     output.fd.sync()
                     count
                 }
-            } ?: throw IllegalStateException("Couldn't open $uri")
+            } ?: throw IllegalStateException("Couldn't open the picked file")
             // Rename is atomic: a crash leaves either no .bin or a complete one, never half a file.
             if (!temp.renameTo(target)) throw IllegalStateException("Couldn't store encrypted file")
             dao.insert(

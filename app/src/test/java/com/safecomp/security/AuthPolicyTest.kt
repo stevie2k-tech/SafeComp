@@ -71,4 +71,30 @@ class AuthPolicyTest {
         assertTrue(AuthPolicy.pinOnly(fingerprintsChanged = true))
         assertFalse(AuthPolicy.pinOnly(fingerprintsChanged = false))
     }
+
+    private fun changed(
+        invalidated: Boolean = false,
+        absent: Boolean = false,
+        enrolled: Boolean = true,
+        hasKeys: Boolean = true,
+    ) = AuthPolicy.fingerprintsChanged(invalidated, absent, enrolled, hasKeys)
+
+    @Test fun `an intact check key means the fingerprints are unchanged`() {
+        assertFalse(changed())
+    }
+
+    @Test fun `a destroyed or unreadable check key means the fingerprints changed`() {
+        assertTrue(changed(invalidated = true))
+        assertTrue(changed(invalidated = true, enrolled = false, hasKeys = false))
+    }
+
+    @Test fun `a first fingerprint added after setup needs the PIN`() {
+        // Set up with the PIN only (no check key), then a fingerprint was enrolled.
+        assertTrue(changed(absent = true))
+    }
+
+    @Test fun `no check key is fine when there is nothing to watch or nothing to protect yet`() {
+        assertFalse(changed(absent = true, enrolled = false))
+        assertFalse(changed(absent = true, hasKeys = false))
+    }
 }

@@ -73,4 +73,20 @@ object AuthPolicy {
      * unlock must use the PIN itself, after which the new fingerprint set is trusted.
      */
     fun pinOnly(fingerprintsChanged: Boolean): Boolean = fingerprintsChanged
+
+    /**
+     * Whether the phone's fingerprints changed since SafeComp last trusted them.
+     *  - [checkKeyInvalidated]: Android destroyed the fingerprint check key (a fingerprint was
+     *    added, or all were removed), or SafeComp couldn't check it (fail closed).
+     *  - [checkKeyAbsent] while a strong fingerprint/face is enrolled and the vault already has
+     *    keys: the owner set SafeComp up with no fingerprint, and one was added since. Without
+     *    this rule that first fingerprint would be trusted without the PIN.
+     * A fresh install (no keys yet) trusts the fingerprints present at the first unlock.
+     */
+    fun fingerprintsChanged(
+        checkKeyInvalidated: Boolean,
+        checkKeyAbsent: Boolean,
+        strongBiometricEnrolled: Boolean,
+        hasKeys: Boolean,
+    ): Boolean = checkKeyInvalidated || (checkKeyAbsent && strongBiometricEnrolled && hasKeys)
 }
